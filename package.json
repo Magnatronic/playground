@@ -1,0 +1,17 @@
+{
+  "name": "playground",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "pixi.js": "^8",
+    "pixi-particle-system": "latest"
+  },
+  "devDependencies": {
+    "vite": "latest"
+  }
+}
