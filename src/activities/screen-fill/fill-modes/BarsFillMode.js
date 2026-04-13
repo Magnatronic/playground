@@ -110,11 +110,23 @@ export class BarsFillMode extends BaseFillMode {
   }
 
   stamp({ x, y, colour }) {
+    // In random mode, randomly pick h or v first to avoid bias, then find nearest
+    let candidates = this.bars;
+    if (this.orientation === 'random') {
+      const hUnfilled = this.bars.filter((b) => !b.filled && b.type === 'horizontal');
+      const vUnfilled = this.bars.filter((b) => !b.filled && b.type === 'vertical');
+      if (hUnfilled.length > 0 && vUnfilled.length > 0) {
+        candidates = Math.random() < 0.5 ? hUnfilled : vUnfilled;
+      } else {
+        candidates = hUnfilled.length > 0 ? hUnfilled : vUnfilled;
+      }
+    }
+
     // Find nearest unfilled bar
     let nearestBar = null;
     let minDistanceSq = Infinity;
 
-    for (const bar of this.bars) {
+    for (const bar of candidates) {
       if (bar.filled) continue;
 
       // Distance to bar center
