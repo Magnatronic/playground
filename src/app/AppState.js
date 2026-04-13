@@ -15,10 +15,9 @@ const DEFAULTS = {
   blendMode: 'normal',
 
   // Screen Fill
-  fillMode: 'standard',
-  shapeAssignment: 'per-switch',
-  globalStampShape: 'circle',
-  stampSize: 30,
+  fillMode: 'bars',
+  barOrientation: 'horizontal',
+  barThickness: 30,
   tilePattern: 'square',
   tileSize: 50,
 

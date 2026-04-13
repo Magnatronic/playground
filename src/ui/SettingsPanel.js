@@ -266,7 +266,7 @@ export class SettingsPanel {
     this._fillModeGroup = createOptionGroup({
       label: 'Fill Mode',
       options: [
-        { value: 'standard', label: 'Standard' },
+        { value: 'bars', label: 'Bars' },
         { value: 'mosaic', label: 'Mosaic' },
       ],
       selected: appState.get('fillMode'),
@@ -277,34 +277,34 @@ export class SettingsPanel {
     });
     container.appendChild(this._fillModeGroup);
 
-    // Standard sub-options
-    this._standardOptions = document.createElement('div');
-    this._standardOptions.style.marginTop = '12px';
+    // Bars sub-options
+    this._barsOptions = document.createElement('div');
+    this._barsOptions.style.marginTop = '12px';
 
-    this._shapeAssignmentGroup = createOptionGroup({
-      label: 'Shape Assignment',
+    this._barOrientationGroup = createOptionGroup({
+      label: 'Bar Orientation',
       options: [
-        { value: 'per-switch', label: 'Per Switch' },
-        { value: 'global', label: 'Global' },
+        { value: 'horizontal', label: 'Horizontal' },
+        { value: 'vertical', label: 'Vertical' },
         { value: 'random', label: 'Random' },
       ],
-      selected: appState.get('shapeAssignment'),
-      onChange: (v) => appState.set('shapeAssignment', v),
+      selected: appState.get('barOrientation'),
+      onChange: (v) => appState.set('barOrientation', v),
     });
-    this._standardOptions.appendChild(this._shapeAssignmentGroup);
+    this._barsOptions.appendChild(this._barOrientationGroup);
 
-    this._stampSizeSlider = createSlider({
-      label: 'Stamp Size',
+    this._barThicknessSlider = createSlider({
+      label: 'Bar Thickness',
       min: 10,
       max: 80,
-      step: 10,
-      value: appState.get('stampSize'),
+      step: 5,
+      value: appState.get('barThickness'),
       unit: 'px',
-      onChange: (v) => appState.set('stampSize', v),
+      onChange: (v) => appState.set('barThickness', v),
     });
-    this._standardOptions.appendChild(this._stampSizeSlider);
+    this._barsOptions.appendChild(this._barThicknessSlider);
 
-    container.appendChild(this._standardOptions);
+    container.appendChild(this._barsOptions);
 
     // Mosaic sub-options
     this._mosaicOptions = document.createElement('div');
@@ -343,7 +343,7 @@ export class SettingsPanel {
 
   _updateFillSubOptions() {
     const mode = appState.get('fillMode');
-    if (this._standardOptions) this._standardOptions.style.display = mode === 'standard' ? '' : 'none';
+    if (this._barsOptions) this._barsOptions.style.display = mode === 'bars' ? '' : 'none';
     if (this._mosaicOptions) this._mosaicOptions.style.display = mode === 'mosaic' ? '' : 'none';
   }
 
@@ -458,8 +458,8 @@ export class SettingsPanel {
     if (this._effectScatterSlider) this._effectScatterSlider.setValue(appState.get('effectScatter'));
     if (this._blendModeGroup) this._blendModeGroup.setValue(appState.get('blendMode'));
     if (this._fillModeGroup) this._fillModeGroup.setValue(appState.get('fillMode'));
-    if (this._shapeAssignmentGroup) this._shapeAssignmentGroup.setValue(appState.get('shapeAssignment'));
-    if (this._stampSizeSlider) this._stampSizeSlider.setValue(appState.get('stampSize'));
+    if (this._barOrientationGroup) this._barOrientationGroup.setValue(appState.get('barOrientation'));
+    if (this._barThicknessSlider) this._barThicknessSlider.setValue(appState.get('barThickness'));
     if (this._tilePatternGroup) this._tilePatternGroup.setValue(appState.get('tilePattern'));
     if (this._tileSizeSlider) this._tileSizeSlider.setValue(appState.get('tileSize'));
     this._updateSweepVisibility();

@@ -288,10 +288,20 @@ export class AppShell {
           activity.setFillMode(v);
         }));
       }
-      // Fill mode sub-options
-      subs.push(appState.subscribe('stampSize', (v) => {
-        if (activity.fillMode?.setStampSize) activity.fillMode.setStampSize(v);
+      // Bars sub-options
+      subs.push(appState.subscribe('barOrientation', (v) => {
+        if (activity.fillMode?.setOrientation) {
+          activity.fillMode.setOrientation(v);
+          activity.clear();
+        }
       }));
+      subs.push(appState.subscribe('barThickness', (v) => {
+        if (activity.fillMode?.setBarThickness) {
+          activity.fillMode.setBarThickness(v);
+          activity.clear();
+        }
+      }));
+      // Mosaic sub-options
       subs.push(appState.subscribe('tileSize', (v) => {
         if (activity.fillMode?.setTileSize) {
           activity.fillMode.setTileSize(v);
@@ -303,12 +313,6 @@ export class AppShell {
           activity.fillMode.setPattern(v);
           activity.reInitPositionMode?.();
         }
-      }));
-      subs.push(appState.subscribe('shapeAssignment', (v) => {
-        if (activity.fillMode?.setShapeAssignment) activity.fillMode.setShapeAssignment(v);
-      }));
-      subs.push(appState.subscribe('globalStampShape', (v) => {
-        if (activity.fillMode?.setCurrentShape) activity.fillMode.setCurrentShape(v);
       }));
     }
 

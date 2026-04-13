@@ -2,14 +2,14 @@ import { BaseActivity } from '../BaseActivity.js';
 import { SweepMode } from '../painting/modes/SweepMode.js';
 import { CursorMode } from '../painting/modes/CursorMode.js';
 import { BiasedRandomMode } from './BiasedRandomMode.js';
-import { StandardFillMode } from './fill-modes/StandardFillMode.js';
+import { BarsFillMode } from './fill-modes/BarsFillMode.js';
 import { MosaicFillMode } from './fill-modes/MosaicFillMode.js';
 import ProgressBar from '../../ui/ProgressBar.js';
 import { Timer } from '../../ui/Timer.js';
 import { Celebration } from '../../ui/Celebration.js';
 import { audioManager } from '../../audio/AudioManager.js';
 
-const FILL_MODE_NAMES = ['standard', 'mosaic'];
+const FILL_MODE_NAMES = ['bars', 'mosaic'];
 
 export class ScreenFillActivity extends BaseActivity {
   constructor() {
@@ -39,7 +39,7 @@ export class ScreenFillActivity extends BaseActivity {
   init(pixiApp) {
     super.init(pixiApp);
 
-    this.setFillMode('standard');
+    this.setFillMode('bars');
     pixiApp.stage.addChild(this.fillMode.getDisplayObject());
 
     const coverageGrid = this.fillMode.getCoverageGrid();
@@ -83,7 +83,7 @@ export class ScreenFillActivity extends BaseActivity {
     }
 
     const now = performance.now();
-    const debounce = this.fillModeName === 'mosaic' ? 50 : this.debounceMs;
+    const debounce = (this.fillModeName === 'mosaic' || this.fillModeName === 'bars') ? 50 : this.debounceMs;
     if (now - this.lastPressTime < debounce) {
       return;
     }
@@ -100,7 +100,7 @@ export class ScreenFillActivity extends BaseActivity {
 
     const pos = this.currentMode.getPosition();
     let scatter = this.currentModeName === 'sweep' ? 10 : 30;
-    if (this.fillModeName === 'mosaic') {
+    if (this.fillModeName === 'mosaic' || this.fillModeName === 'bars') {
       scatter = 0;
     }
 
@@ -161,8 +161,8 @@ export class ScreenFillActivity extends BaseActivity {
       this.fillMode = null;
     }
 
-    if (name === 'standard') {
-      this.fillMode = new StandardFillMode();
+    if (name === 'bars') {
+      this.fillMode = new BarsFillMode();
     } else {
       this.fillMode = new MosaicFillMode();
     }
@@ -196,23 +196,16 @@ export class ScreenFillActivity extends BaseActivity {
   }
 
   cycleFillModeOption() {
-    if (this.fillModeName === 'standard' && this.fillMode) {
-      this.fillMode.cycleShapeAssignment();
-    } else if (this.fillModeName === 'mosaic' && this.fillMode) {
+    if (this.fillModeName === 'mosaic' && this.fillMode) {
       this.fillMode.cyclePattern();
-    }
-  }
-
-  cycleStampShape() {
-    if (this.fillModeName === 'standard' && this.fillMode) {
-      this.fillMode.cycleShape();
     }
   }
 
   increaseStampSize() {
     if (!this.fillMode) return;
-    if (this.fillModeName === 'standard') {
-      this.fillMode.increaseStampSize();
+    if (this.fillModeName === 'bars') {
+      this.fillMode.increaseBarThickness();
+      this.reInitPositionMode();
     } else if (this.fillModeName === 'mosaic') {
       this.fillMode.increaseTileSize();
       this.reInitPositionMode();
@@ -221,8 +214,9 @@ export class ScreenFillActivity extends BaseActivity {
 
   decreaseStampSize() {
     if (!this.fillMode) return;
-    if (this.fillModeName === 'standard') {
-      this.fillMode.decreaseStampSize();
+    if (this.fillModeName === 'bars') {
+      this.fillMode.decreaseBarThickness();
+      this.reInitPositionMode();
     } else if (this.fillModeName === 'mosaic') {
       this.fillMode.decreaseTileSize();
       this.reInitPositionMode();
