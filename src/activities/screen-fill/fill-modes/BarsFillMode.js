@@ -17,16 +17,15 @@ export class BarsFillMode extends BaseFillMode {
     this.maxBarThickness = 80;
     this.barThicknessStep = 5;
 
-    this.bars = []; // Array of {x, y, width, height, centerX, centerY, filled, colour}
+    this.bars = []; // Array of {x, y, width, height, centerX, centerY, filled, colour, type}
     this.filledCount = 0;
     this.totalBars = 0;
 
-    // For random mode: track actual pixel coverage with a coarse grid
-    this._coverageCols = 0;
-    this._coverageRows = 0;
-    this._coverageGrid = null; // Uint8Array, 1 = covered
-    this._totalCells = 0;
-    this._filledCells = 0;
+    // For random mode: track h/v separately, done when either set is full
+    this._hTotal = 0;
+    this._hFilled = 0;
+    this._vTotal = 0;
+    this._vFilled = 0;
   }
 
   init(app, options = {}) {
@@ -65,21 +64,11 @@ export class BarsFillMode extends BaseFillMode {
 
     this.totalBars = this.bars.length;
 
-    // For random mode, build a coarse grid to track actual pixel coverage
-    if (this.orientation === 'random') {
-      const cellSize = Math.max(4, Math.floor(this.barThickness / 2));
-      this._coverageCols = Math.ceil(w / cellSize);
-      this._coverageRows = Math.ceil(h / cellSize);
-      this._coverageCellW = w / this._coverageCols;
-      this._coverageCellH = h / this._coverageRows;
-      this._totalCells = this._coverageCols * this._coverageRows;
-      this._filledCells = 0;
-      this._coverageGrid = new Uint8Array(this._totalCells);
-    } else {
-      this._coverageGrid = null;
-      this._totalCells = 0;
-      this._filledCells = 0;
-    }
+    // Count h/v totals for random mode tracking
+    this._hTotal = this.bars.filter((b) => b.type === 'horizontal').length;
+    this._hFilled = 0;
+    this._vTotal = this.bars.filter((b) => b.type === 'vertical').length;
+    this._vFilled = 0;
   }
 
   _buildHorizontalBars(w, h) {
@@ -145,35 +134,23 @@ export class BarsFillMode extends BaseFillMode {
     nearestBar.colour = colour;
     this.filledCount++;
 
+    // Track h/v separately
+    if (nearestBar.type === 'horizontal') this._hFilled++;
+    if (nearestBar.type === 'vertical') this._vFilled++;
+
     // Draw the bar — no outline, just solid colour
     this.filledLayer.rect(nearestBar.x, nearestBar.y, nearestBar.width, nearestBar.height);
     this.filledLayer.fill(hexToNumber(colour));
-
-    // In random mode, mark actual pixel coverage on the coarse grid
-    if (this._coverageGrid) {
-      const colStart = Math.floor(nearestBar.x / this._coverageCellW);
-      const colEnd = Math.min(this._coverageCols - 1, Math.floor((nearestBar.x + nearestBar.width - 1) / this._coverageCellW));
-      const rowStart = Math.floor(nearestBar.y / this._coverageCellH);
-      const rowEnd = Math.min(this._coverageRows - 1, Math.floor((nearestBar.y + nearestBar.height - 1) / this._coverageCellH));
-      for (let r = rowStart; r <= rowEnd; r++) {
-        for (let c = colStart; c <= colEnd; c++) {
-          const idx = r * this._coverageCols + c;
-          if (!this._coverageGrid[idx]) {
-            this._coverageGrid[idx] = 1;
-            this._filledCells++;
-          }
-        }
-      }
-    }
   }
 
   getPercentage() {
-    // In random mode, use actual pixel coverage (bars overlap)
-    if (this._coverageGrid) {
-      if (this._totalCells === 0) return 0;
-      return (this._filledCells / this._totalCells) * 100;
+    if (this.orientation === 'random') {
+      // Done when ALL horizontal OR ALL vertical bars are filled
+      const hPct = this._hTotal > 0 ? (this._hFilled / this._hTotal) : 0;
+      const vPct = this._vTotal > 0 ? (this._vFilled / this._vTotal) : 0;
+      return Math.max(hPct, vPct) * 100;
     }
-    // In horizontal/vertical mode, simple bar count
+    // Horizontal/vertical only: simple bar count
     if (this.totalBars === 0) return 0;
     return (this.filledCount / this.totalBars) * 100;
   }
