@@ -8,6 +8,7 @@ import ProgressBar from '../../ui/ProgressBar.js';
 import { Timer } from '../../ui/Timer.js';
 import { Celebration } from '../../ui/Celebration.js';
 import { audioManager } from '../../audio/AudioManager.js';
+import { appState } from '../../app/AppState.js';
 
 const FILL_MODE_NAMES = ['bars', 'mosaic'];
 
@@ -163,11 +164,18 @@ export class ScreenFillActivity extends BaseActivity {
 
     if (name === 'bars') {
       this.fillMode = new BarsFillMode();
+      this.fillMode.init(this.app, {
+        barThickness: appState.get('barThickness'),
+        orientation: appState.get('barOrientation'),
+      });
     } else {
       this.fillMode = new MosaicFillMode();
+      this.fillMode.init(this.app, {
+        tileSize: appState.get('tileSize'),
+        patternName: appState.get('tilePattern'),
+      });
     }
 
-    this.fillMode.init(this.app);
     this.fillModeName = name;
     this.fillModeIndex = FILL_MODE_NAMES.indexOf(name);
 
