@@ -313,10 +313,10 @@ export class SettingsPanel {
     this._tilePatternGroup = createOptionGroup({
       label: 'Tile Pattern',
       options: [
-        { value: 'square', label: 'Square' },
-        { value: 'hex', label: 'Hexagon' },
-        { value: 'triangle', label: 'Triangle' },
-        { value: 'brick', label: 'Brick' },
+        { value: 'squares', label: 'Square' },
+        { value: 'hexagons', label: 'Hexagon' },
+        { value: 'triangles', label: 'Triangle' },
+        { value: 'bricks', label: 'Brick' },
       ],
       selected: appState.get('tilePattern'),
       onChange: (v) => appState.set('tilePattern', v),

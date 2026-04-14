@@ -18,7 +18,7 @@ const DEFAULTS = {
   fillMode: 'bars',
   barOrientation: 'horizontal',
   barThickness: 30,
-  tilePattern: 'square',
+  tilePattern: 'squares',
   tileSize: 50,
 
   // Switch Profiles — initialized empty, populated by AppShell from SwitchManager
