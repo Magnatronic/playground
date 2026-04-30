@@ -2,12 +2,14 @@ import { SolidCircle } from './SolidCircle.js';
 import { SoftBrush } from './SoftBrush.js';
 import { SmokeEffect } from './SmokeEffect.js';
 import { StarburstEffect } from './StarburstEffect.js';
+import { SplatEffect } from './SplatEffect.js';
 
 const EFFECT_TYPES = {
   solid: SolidCircle,
   brush: SoftBrush,
   smoke: SmokeEffect,
   starburst: StarburstEffect,
+  splat: SplatEffect,
 };
 
 export function createEffect(type) {

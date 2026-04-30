@@ -132,6 +132,81 @@ export class PaintLayer {
   }
 
   /**
+   * Stamp a splat (irregular blob + droplets) onto the paint layer.
+   * Uses an offscreen canvas to draw an irregular shape and a handful of
+   * permanent droplet marks, then stamps the resulting texture into the
+   * render texture so the splat becomes permanent paint.
+   */
+  stampSplat(options) {
+    this.ensureTextureSize();
+    const { x, y, colour, size = 40, opacity = 0.95, impactMultiplier = 1 } = options;
+    const diameter = Math.round(size * impactMultiplier * 2.4);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = diameter;
+    canvas.height = diameter;
+    const ctx = canvas.getContext('2d');
+    const cx = diameter / 2;
+    const cy = diameter / 2;
+    const baseR = diameter * 0.4;
+
+    // central irregular blob
+    ctx.beginPath();
+    const pts = 12;
+    for (let i = 0; i < pts; i++) {
+      const angle = (i / pts) * Math.PI * 2;
+      const jitter = (0.85 + Math.random() * 0.4);
+      const r = baseR * jitter;
+      const px = cx + Math.cos(angle) * r;
+      const py = cy + Math.sin(angle) * r;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+
+    const hex = colour.replace('#', '');
+    const cr = parseInt(hex.substring(0, 2), 16);
+    const cg = parseInt(hex.substring(2, 4), 16);
+    const cb = parseInt(hex.substring(4, 6), 16);
+
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseR * 1.2);
+    grad.addColorStop(0, `rgba(${cr}, ${cg}, ${cb}, ${opacity})`);
+    grad.addColorStop(0.6, `rgba(${cr}, ${cg}, ${cb}, ${opacity * 0.9})`);
+    grad.addColorStop(1, `rgba(${cr}, ${cg}, ${cb}, 0)`);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // permanent droplets
+    const dropletCount = 6 + Math.floor(Math.random() * 8);
+    for (let i = 0; i < dropletCount; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const dist = baseR * (0.5 + Math.random() * 1.4);
+      const dx = cx + Math.cos(a) * dist;
+      const dy = cy + Math.sin(a) * dist;
+      const rr = Math.max(1, Math.round(diameter * (0.02 + Math.random() * 0.06)));
+      ctx.beginPath();
+      ctx.arc(dx, dy, rr, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${cr}, ${cg}, ${cb}, ${0.9 - Math.random() * 0.6})`;
+      ctx.fill();
+    }
+
+    const texture = RenderTexture.from({ resource: canvas });
+    const sprite = new Sprite(texture);
+    sprite.anchor.set(0.5);
+    sprite.position.set(x, y);
+
+    if (this.blendMode === 'add') sprite.blendMode = 'add';
+    else if (this.blendMode === 'multiply') sprite.blendMode = 'multiply';
+    else if (this.blendMode === 'screen') sprite.blendMode = 'screen';
+
+    this.stampContainer.addChild(sprite);
+    this.app.renderer.render({ container: this.stampContainer, target: this.renderTexture, clear: false });
+    this.stampContainer.removeChild(sprite);
+    sprite.destroy();
+    texture.destroy();
+  }
+
+  /**
    * Clear the entire paint layer.
    */
   clear() {

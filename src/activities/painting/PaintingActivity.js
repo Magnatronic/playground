@@ -89,7 +89,9 @@ export class PaintingActivity extends BaseActivity {
       impactMultiplier: switchProfile.impactMultiplier,
     };
 
-    if (this.effectType === 'brush' || this.effectType === 'smoke') {
+    if (this.effectType === 'splat') {
+      this.paintLayer.stampSplat(stampOptions);
+    } else if (this.effectType === 'brush' || this.effectType === 'smoke') {
       this.paintLayer.stampSoft(stampOptions);
     } else {
       this.paintLayer.stamp(stampOptions);
