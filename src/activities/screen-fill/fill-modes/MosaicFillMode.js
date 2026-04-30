@@ -74,11 +74,17 @@ export class MosaicFillMode extends BaseFillMode {
     const sh = this.app.screen.height;
 
     for (const tile of tileData) {
-      const hasVisibleVertex = tile.points.some(
-        (pt) => pt[0] >= 0 && pt[0] <= sw && pt[1] >= 0 && pt[1] <= sh
-      );
-
-      if (!hasVisibleVertex) {
+      // Include any tile whose bounding box intersects the screen — this covers
+      // edge-straddling tiles whose centers are off-screen but whose polygon is
+      // partially visible and needs to be fillable.
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const pt of tile.points) {
+        if (pt[0] < minX) minX = pt[0];
+        if (pt[0] > maxX) maxX = pt[0];
+        if (pt[1] < minY) minY = pt[1];
+        if (pt[1] > maxY) maxY = pt[1];
+      }
+      if (maxX <= 0 || minX >= sw || maxY <= 0 || minY >= sh) {
         continue;
       }
 
@@ -89,10 +95,15 @@ export class MosaicFillMode extends BaseFillMode {
       this.unfilledLayer.poly(flatPoints);
       this.unfilledLayer.stroke({ width: UNFILLED_STROKE_WIDTH, color: UNFILLED_STROKE_COLOR });
 
+      // Clamp the stored center to inside the screen so that stamp()'s nearest-
+      // tile search always finds this tile when targeting it. Without clamping,
+      // a corner tile at e.g. (1974, 1140) on a 1920×1080 screen can never be
+      // the nearest tile to any stamp position inside [0,sw]×[0,sh] — it would
+      // be permanently unreachable and progress would stall below 100%.
       this.tiles.push({
         filled: false,
-        centerX: tile.centerX,
-        centerY: tile.centerY,
+        centerX: Math.max(0, Math.min(sw - 1, tile.centerX)),
+        centerY: Math.max(0, Math.min(sh - 1, tile.centerY)),
         flatPoints,
       });
     }

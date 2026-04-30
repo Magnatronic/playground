@@ -304,12 +304,14 @@ export class AppShell {
       // Mosaic sub-options
       subs.push(appState.subscribe('tileSize', (v) => {
         if (activity.fillMode?.setTileSize) {
+          activity.clear();
           activity.fillMode.setTileSize(v);
           activity.reInitPositionMode?.();
         }
       }));
       subs.push(appState.subscribe('tilePattern', (v) => {
         if (activity.fillMode?.setPattern) {
+          activity.clear();
           activity.fillMode.setPattern(v);
           activity.reInitPositionMode?.();
         }

@@ -5,7 +5,6 @@ import { BiasedRandomMode } from './BiasedRandomMode.js';
 import { BarsFillMode } from './fill-modes/BarsFillMode.js';
 import { MosaicFillMode } from './fill-modes/MosaicFillMode.js';
 import ProgressBar from '../../ui/ProgressBar.js';
-import { Timer } from '../../ui/Timer.js';
 import { Celebration } from '../../ui/Celebration.js';
 import { audioManager } from '../../audio/AudioManager.js';
 import { appState } from '../../app/AppState.js';
@@ -20,7 +19,6 @@ export class ScreenFillActivity extends BaseActivity {
     this.fillModeName = 'standard';
     this.fillModeIndex = 0;
     this.progressBar = null;
-    this.timer = null;
     this.celebration = null;
 
     this.currentMode = null;
@@ -31,7 +29,6 @@ export class ScreenFillActivity extends BaseActivity {
     this.lastPressTime = 0;
 
     this.completed = false;
-    this.started = false;
 
     this.handleResize = this.handleResize.bind(this);
     this.resizeTimeout = null;
@@ -54,9 +51,6 @@ export class ScreenFillActivity extends BaseActivity {
     this.progressBar.show();
     this.progressBar.update(0);
 
-    this.timer = new Timer();
-    this.timer.show();
-
     this.celebration = new Celebration();
 
     window.addEventListener('resize', this.handleResize);
@@ -71,10 +65,6 @@ export class ScreenFillActivity extends BaseActivity {
 
     if (this.fillMode) {
       this.fillMode.update(delta);
-    }
-
-    if (this.timer) {
-      this.timer.update();
     }
   }
 
@@ -92,11 +82,6 @@ export class ScreenFillActivity extends BaseActivity {
 
     if (!this.currentMode || !this.fillMode) {
       return;
-    }
-
-    if (!this.started && this.timer) {
-      this.started = true;
-      this.timer.start();
     }
 
     const pos = this.currentMode.getPosition();
@@ -130,19 +115,13 @@ export class ScreenFillActivity extends BaseActivity {
     if (Math.round(percentage) >= 100 && !this.completed) {
       this.completed = true;
 
-      if (this.timer) {
-        this.timer.stop();
-      }
-
       if (this.celebration) {
         this.celebration.play(this.app, () => {});
       }
 
       audioManager.playFanfare();
 
-      const elapsedMs = this.timer && this.timer.getElapsed ? this.timer.getElapsed() : 0;
-      const elapsedSeconds = (elapsedMs / 1000).toFixed(2);
-      console.log(`Screen Fill completed in ${elapsedSeconds}s`);
+      console.log('Screen Fill completed');
     }
   }
 
@@ -275,10 +254,6 @@ export class ScreenFillActivity extends BaseActivity {
       this.fillMode.reset();
     }
 
-    if (this.timer) {
-      this.timer.reset();
-    }
-
     if (this.progressBar) {
       this.progressBar.update(0);
     }
@@ -289,7 +264,6 @@ export class ScreenFillActivity extends BaseActivity {
     this.celebration = new Celebration();
 
     this.completed = false;
-    this.started = false;
 
     console.log('Screen Fill activity reset');
   }
@@ -352,11 +326,6 @@ export class ScreenFillActivity extends BaseActivity {
     if (this.progressBar) {
       this.progressBar.destroy();
       this.progressBar = null;
-    }
-
-    if (this.timer) {
-      this.timer.destroy();
-      this.timer = null;
     }
 
     if (this.celebration) {
