@@ -1,23 +1,16 @@
-import { Container, Sprite, Graphics, Ticker } from 'pixi.js';
+import { Container, Sprite, Graphics, Ticker, Texture } from 'pixi.js';
 import { BaseEffect } from './BaseEffect.js';
 import { hexToNumber } from '../utils/colour.js';
 import { createSplatCanvas } from './splatGenerator.js';
 
-// Cache textures (canvas -> texture created on demand by consumers)
-const splatCanvasCache = new Map();
-
 export class SplatEffect extends BaseEffect {
   createEffect(container, options) {
     const { x, y, colour, size = 40, opacity = 0.95, impactMultiplier = 1 } = options;
-    const diameter = Math.round(size * impactMultiplier * 2.4);
+    // blobDiameter is the central blob — canvas will be 5× this internally
+    const diameter = Math.round(size * impactMultiplier * 1.2);
 
-    const key = `${colour}-${diameter}`;
-    let canvas = splatCanvasCache.get(key);
-    if (!canvas) {
-      canvas = createSplatCanvas(colour, diameter);
-      splatCanvasCache.set(key, canvas);
-    }
-
+    // Don't cache — each splat should look unique (generator uses Math.random)
+    const canvas = createSplatCanvas(colour, diameter);
     const sprite = new Sprite(Texture.from(canvas));
     sprite.anchor.set(0.5);
     sprite.position.set(x, y);
@@ -32,9 +25,8 @@ export class SplatEffect extends BaseEffect {
     for (let i = 0; i < dropletCount; i++) {
       const g = new Graphics();
       const rr = (Math.random() * 0.4 + 0.12) * size * 0.6 * Math.max(0.4, impactMultiplier);
-      g.beginFill(hexToNumber(colour));
-      g.drawCircle(0, 0, rr);
-      g.endFill();
+      g.circle(0, 0, rr);
+      g.fill(hexToNumber(colour));
       g.alpha = 0.95;
       g.x = x + (Math.random() - 0.5) * size * 0.25;
       g.y = y + (Math.random() - 0.5) * size * 0.25;

@@ -1,4 +1,4 @@
-import { Container, Graphics, RenderTexture, Sprite } from 'pixi.js';
+import { Container, Graphics, RenderTexture, Sprite, Texture } from 'pixi.js';
 import { hexToNumber } from '../utils/colour.js';
 import { createSplatCanvas } from '../effects/splatGenerator.js';
 import { drawShape } from '../activities/screen-fill/fill-modes/ShapeStamper.js';
@@ -108,8 +108,7 @@ export class PaintLayer {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, diameter, diameter);
 
-    // Use the shared splat generator canvas for consistency with transient effects
-    const sprite = new Sprite(RenderTexture.from({ resource: canvas }));
+    const sprite = new Sprite(Texture.from(canvas));
     sprite.anchor.set(0.5);
     sprite.position.set(x, y);
 
@@ -140,11 +139,12 @@ export class PaintLayer {
   stampSplat(options) {
     this.ensureTextureSize();
     const { x, y, colour, size = 40, opacity = 0.95, impactMultiplier = 1 } = options;
-    const diameter = Math.round(size * impactMultiplier * 2.4);
+    // blobDiameter drives R inside the generator; canvas will be 5× this
+    const diameter = Math.round(size * impactMultiplier * 1.2);
 
     // Use the shared splat generator to create a richer splat canvas
     const canvas = createSplatCanvas(colour, diameter);
-    const sprite = new Sprite(RenderTexture.from({ resource: canvas }));
+    const sprite = new Sprite(Texture.from(canvas));
     sprite.anchor.set(0.5);
     sprite.position.set(x, y);
 
@@ -156,7 +156,6 @@ export class PaintLayer {
     this.app.renderer.render({ container: this.stampContainer, target: this.renderTexture, clear: false });
     this.stampContainer.removeChild(sprite);
     sprite.destroy();
-    texture.destroy();
   }
 
   /**

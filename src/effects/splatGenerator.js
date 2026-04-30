@@ -1,167 +1,156 @@
-// Splat generator: produces an organic paint splat canvas
-export function createSplatCanvas(colour, diameter) {
+/**
+ * Creates an organic paint-splat canvas resembling real thrown paint:
+ * a large irregular blob, thin radiating arms, scattered droplets, fine micro-splatter.
+ *
+ * @param {string} colour       - hex colour e.g. '#ff0000'
+ * @param {number} blobDiameter - nominal diameter of the central blob in px
+ * @returns {HTMLCanvasElement}
+ */
+export function createSplatCanvas(colour, blobDiameter) {
+  // Canvas is 5× the blob so arms and distant droplets have room
+  const armReach = blobDiameter * 2.0;
+  const canvasSize = Math.ceil(blobDiameter + armReach * 2);
   const canvas = document.createElement('canvas');
-  canvas.width = diameter;
-  canvas.height = diameter;
+  canvas.width = canvasSize;
+  canvas.height = canvasSize;
   const ctx = canvas.getContext('2d');
 
-  const cx = diameter / 2;
-  const cy = diameter / 2;
-  const baseR = diameter * 0.42;
+  const cx = canvasSize / 2;
+  const cy = canvasSize / 2;
+  const R = blobDiameter * 0.4; // central blob radius
 
-  // helper: hex -> rgb
-  function hexToRgb(h) {
-    const hex = (h || '#ffffff').replace('#', '');
-    return {
-      r: parseInt(hex.substring(0, 2), 16),
-      g: parseInt(hex.substring(2, 4), 16),
-      b: parseInt(hex.substring(4, 6), 16),
-    };
-  }
+  // Parse hex colour
+  const hex = (colour || '#ffffff').replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  const colA = (a) => `rgba(${r},${g},${b},${a.toFixed(3)})`;
+  // Darker shade for depth layers
+  const rd = Math.max(0, r - 55);
+  const gd = Math.max(0, g - 55);
+  const bd = Math.max(0, b - 55);
+  const darkA = (a) => `rgba(${rd},${gd},${bd},${a.toFixed(3)})`;
 
-  const { r, g, b } = hexToRgb(colour);
+  // ── 1. Radiating arms (drawn underneath the main blob) ──────────────────
+  const armCount = 6 + Math.floor(Math.random() * 8); // 6–13 arms
+  for (let i = 0; i < armCount; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const len = R * 1.6 + Math.random() * (armReach * 0.88 - R * 1.6);
+    const rootW = Math.max(1.5, R * 0.05 + Math.random() * R * 0.09);
+    const bendY = (Math.random() - 0.5) * len * 0.22;
 
-  // clear
-  ctx.clearRect(0, 0, diameter, diameter);
-
-  // 1) core highlight: bright, small specular center
-  (function drawCore() {
-    const coreR = baseR * (0.28 + Math.random() * 0.06);
-    const grad = ctx.createRadialGradient(cx - coreR * 0.15, cy - coreR * 0.15, 0, cx, cy, coreR * 1.6);
-    grad.addColorStop(0, `rgba(255,255,255,${0.28 + Math.random() * 0.12})`);
-    grad.addColorStop(0.5, `rgba(${r},${g},${b},${0.95})`);
-    grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
     ctx.save();
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = grad;
+    ctx.translate(cx, cy);
+    ctx.rotate(ang);
+
+    // Tapered shape: wide at root, tapering to a point
     ctx.beginPath();
-    ctx.arc(cx, cy, coreR * 1.6, 0, Math.PI * 2);
+    ctx.moveTo(R * 0.45, -rootW * 0.5);
+    ctx.quadraticCurveTo(len * 0.45, bendY - rootW * 0.15, len, 0);
+    ctx.quadraticCurveTo(len * 0.45, bendY + rootW * 0.15, R * 0.45, rootW * 0.5);
+    ctx.closePath();
+
+    const ag = ctx.createLinearGradient(R * 0.45, 0, len, 0);
+    ag.addColorStop(0,    colA(0.92));
+    ag.addColorStop(0.65, colA(0.70));
+    ag.addColorStop(1,    colA(0.00));
+    ctx.fillStyle = ag;
     ctx.fill();
     ctx.restore();
-  })();
 
-  // 2) mid blob: irregular polygon filled with radial gradient (wet paint)
-  (function drawMidBlob() {
-    const pts = 24;
-    const jitterScale = 0.6 + Math.random() * 0.6;
+    // Small teardrop/droplet at the tip of ~half the arms
+    if (Math.random() < 0.55) {
+      const ex = cx + Math.cos(ang) * len;
+      const ey = cy + Math.sin(ang) * len;
+      if (ex > 1 && ex < canvasSize - 1 && ey > 1 && ey < canvasSize - 1) {
+        const er = Math.max(1, R * (0.03 + Math.random() * 0.07));
+        ctx.beginPath();
+        ctx.arc(ex, ey, er, 0, Math.PI * 2);
+        ctx.fillStyle = colA(0.88);
+        ctx.fill();
+      }
+    }
+  }
+
+  // ── 2. Central irregular blob – 3 passes for layered depth ──────────────
+  for (let pass = 0; pass < 3; pass++) {
+    // outer pass slightly larger for a soft halo edge
+    const passR = R * (pass === 0 ? 1.08 : pass === 1 ? 1.0 : 0.90);
+    const pts = 40;
+
+    ctx.save();
     ctx.beginPath();
-    for (let i = 0; i < pts; i++) {
+    for (let i = 0; i <= pts; i++) {
       const a = (i / pts) * Math.PI * 2;
-      // combine deterministic wave + noise for more organic outline
-      const wave = 1 + Math.sin(i * 1.9) * 0.08;
-      const jitter = (0.8 + Math.random() * 0.45) * jitterScale;
-      const rad = baseR * wave * jitter;
+      // Multi-frequency noise → truly organic, non-circular edge
+      const noise =
+        Math.sin(a * 3.1  + pass * 1.3) * 0.10 +
+        Math.sin(a * 5.7  + pass * 0.8) * 0.07 +
+        Math.sin(a * 11.3 + pass * 0.5) * 0.04 +
+        (Math.random() * 0.20 - 0.10);
+      const rad = passR * (0.82 + noise);
       const x = cx + Math.cos(a) * rad;
       const y = cy + Math.sin(a) * rad;
       if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+      else         ctx.lineTo(x, y);
     }
     ctx.closePath();
 
-    // gradient for wet look (darker near center)
-    const gMid = ctx.createRadialGradient(cx, cy, baseR * 0.1, cx, cy, baseR * 1.1);
-    gMid.addColorStop(0, `rgba(${Math.min(255, r + 20)},${Math.min(255, g + 20)},${Math.min(255, b + 20)},0.95)`);
-    gMid.addColorStop(0.6, `rgba(${r},${g},${b},0.92)`);
-    gMid.addColorStop(1, `rgba(${r},${g},${b},0.06)`);
+    if (pass === 0)      ctx.filter = 'blur(3px)';
+    else if (pass === 1) ctx.filter = 'blur(1px)';
+    else                 ctx.filter = 'none';
 
-    ctx.save();
-    ctx.filter = 'blur(1.6px)';
-    ctx.fillStyle = gMid;
+    // Top pass slightly darker for a wet-paint depth impression
+    ctx.fillStyle = pass === 2 ? darkA(0.45) : colA(pass === 0 ? 0.82 : 0.90);
     ctx.fill();
     ctx.restore();
-  })();
+  }
 
-  // 3) spikes / arms: thin tapered strokes radiating from the blob
-  (function drawSpikes() {
-    const spikeCount = 6 + Math.floor(Math.random() * 10);
-    for (let s = 0; s < spikeCount; s++) {
-      const ang = Math.random() * Math.PI * 2;
-      const len = baseR * (0.45 + Math.random() * 1.2);
-      const width = 1 + Math.random() * (diameter * 0.02);
+  // Specular sheen: off-centre radial gradient → looks wet
+  ctx.save();
+  const sheen = ctx.createRadialGradient(
+    cx - R * 0.18, cy - R * 0.22, 0,
+    cx,            cy,            R * 1.05
+  );
+  sheen.addColorStop(0,   'rgba(255,255,255,0.20)');
+  sheen.addColorStop(0.35,'rgba(255,255,255,0.06)');
+  sheen.addColorStop(1,   'rgba(255,255,255,0.00)');
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 1.05, 0, Math.PI * 2);
+  ctx.fillStyle = sheen;
+  ctx.fill();
+  ctx.restore();
 
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(ang);
-      // narrow triangular spike path
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.quadraticCurveTo(len * 0.3, (Math.random() - 0.5) * width * 6, len * 0.6, (Math.random() - 0.5) * width * 3);
-      ctx.quadraticCurveTo(len * 0.9, (Math.random() - 0.5) * width * 1.2, len, 0);
-      ctx.lineTo(len * 0.9, width * 0.2);
-      ctx.quadraticCurveTo(len * 0.6, (Math.random() - 0.5) * width * 2, 0, 0);
-      ctx.closePath();
+  // ── 3. Scattered droplets – power distribution for realism ──────────────
+  const dropCount = 22 + Math.floor(Math.random() * 30);
+  for (let i = 0; i < dropCount; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    // √ distribution → many medium-distance, some very far
+    const dist = R * 1.1 + Math.pow(Math.random(), 0.55) * armReach * 0.85;
+    const dx = cx + Math.cos(ang) * dist;
+    const dy = cy + Math.sin(ang) * dist;
+    if (dx < 1 || dx > canvasSize - 1 || dy < 1 || dy > canvasSize - 1) continue;
 
-      const spikeGrad = ctx.createLinearGradient(0, 0, len, 0);
-      spikeGrad.addColorStop(0, `rgba(${r},${g},${b},0.88)`);
-      spikeGrad.addColorStop(1, `rgba(${r},${g},${b},0.02)`);
-      ctx.fillStyle = spikeGrad;
-      ctx.filter = 'blur(1.2px)';
-      ctx.fill();
-      ctx.restore();
-    }
-  })();
+    const rr = Math.max(1, R * (0.022 + Math.random() * 0.12));
+    ctx.beginPath();
+    ctx.arc(dx, dy, rr, 0, Math.PI * 2);
+    ctx.fillStyle = colA(0.58 + Math.random() * 0.40);
+    ctx.fill();
+  }
 
-  // 4) smear strokes: simulate paint pulled outward
-  (function drawSmears() {
-    const smearCount = 3 + Math.floor(Math.random() * 5);
-    for (let i = 0; i < smearCount; i++) {
-      const ang = Math.random() * Math.PI * 2;
-      const len = baseR * (0.6 + Math.random() * 1.4);
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(ang);
-      ctx.beginPath();
-      ctx.moveTo(0, (Math.random() - 0.5) * baseR * 0.25);
-      ctx.bezierCurveTo(len * 0.2, (Math.random() - 0.5) * baseR * 0.3, len * 0.6, (Math.random() - 0.5) * baseR * 0.15, len, 0);
-      ctx.lineWidth = 1 + Math.random() * (diameter * 0.03);
-      ctx.lineCap = 'round';
-      ctx.strokeStyle = `rgba(${r},${g},${b},${0.85 - Math.random() * 0.5})`;
-      ctx.filter = 'blur(0.8px)';
-      ctx.stroke();
-      ctx.restore();
-    }
-  })();
-
-  // 5) droplets / splatters: varied circle and oval marks
-  (function drawDroplets() {
-    const dropletCount = 8 + Math.floor(Math.random() * 22);
-    for (let i = 0; i < dropletCount; i++) {
-      const ang = Math.random() * Math.PI * 2;
-      const dist = baseR * (0.35 + Math.random() * 1.6);
-      const dx = cx + Math.cos(ang) * dist;
-      const dy = cy + Math.sin(ang) * dist;
-      const rr = Math.max(1, Math.round(diameter * (0.015 + Math.random() * 0.07)));
-
-      ctx.save();
-      // some droplets are ovals — scale transform
-      const sx = 0.7 + Math.random() * 0.8;
-      const sy = 0.7 + Math.random() * 0.8;
-      ctx.translate(dx, dy);
-      ctx.scale(sx, sy);
-      const dg = ctx.createRadialGradient(0, 0, 0, 0, 0, rr * 1.6);
-      dg.addColorStop(0, `rgba(${r},${g},${b},${0.95 - Math.random() * 0.6})`);
-      dg.addColorStop(1, `rgba(${r},${g},${b},0)`);
-      ctx.fillStyle = dg;
-      ctx.filter = 'blur(0.9px)';
-      ctx.beginPath();
-      ctx.arc(0, 0, rr * 1.4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-  })();
-
-  // 6) textured noise overlay (very subtle) to break smoothness
-  (function addNoise() {
-    const noise = ctx.createImageData(diameter, diameter);
-    for (let i = 0; i < noise.data.length; i += 4) {
-      const v = Math.floor(Math.random() * 12); // subtle
-      noise.data[i] = v;
-      noise.data[i + 1] = v;
-      noise.data[i + 2] = v;
-      noise.data[i + 3] = 6; // low alpha
-    }
-    ctx.putImageData(noise, 0, 0);
-  })();
+  // ── 4. Fine micro-splatter near blob edge ────────────────────────────────
+  const fineCount = 14 + Math.floor(Math.random() * 20);
+  for (let i = 0; i < fineCount; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const dist = R * (0.88 + Math.random() * 1.4);
+    const dx = cx + Math.cos(ang) * dist;
+    const dy = cy + Math.sin(ang) * dist;
+    const rr = Math.max(0.5, R * (0.006 + Math.random() * 0.026));
+    ctx.beginPath();
+    ctx.arc(dx, dy, rr, 0, Math.PI * 2);
+    ctx.fillStyle = colA(0.50 + Math.random() * 0.48);
+    ctx.fill();
+  }
 
   return canvas;
 }
