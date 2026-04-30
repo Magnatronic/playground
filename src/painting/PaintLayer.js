@@ -1,5 +1,6 @@
 import { Container, Graphics, RenderTexture, Sprite } from 'pixi.js';
 import { hexToNumber } from '../utils/colour.js';
+import { createSplatCanvas } from '../effects/splatGenerator.js';
 import { drawShape } from '../activities/screen-fill/fill-modes/ShapeStamper.js';
 
 const BLEND_MODES = ['normal', 'add', 'multiply', 'screen'];
@@ -128,7 +129,6 @@ export class PaintLayer {
     });
     this.stampContainer.removeChild(sprite);
     sprite.destroy();
-    texture.destroy();
   }
 
   /**
@@ -142,56 +142,9 @@ export class PaintLayer {
     const { x, y, colour, size = 40, opacity = 0.95, impactMultiplier = 1 } = options;
     const diameter = Math.round(size * impactMultiplier * 2.4);
 
-    const canvas = document.createElement('canvas');
-    canvas.width = diameter;
-    canvas.height = diameter;
-    const ctx = canvas.getContext('2d');
-    const cx = diameter / 2;
-    const cy = diameter / 2;
-    const baseR = diameter * 0.4;
-
-    // central irregular blob
-    ctx.beginPath();
-    const pts = 12;
-    for (let i = 0; i < pts; i++) {
-      const angle = (i / pts) * Math.PI * 2;
-      const jitter = (0.85 + Math.random() * 0.4);
-      const r = baseR * jitter;
-      const px = cx + Math.cos(angle) * r;
-      const py = cy + Math.sin(angle) * r;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-
-    const hex = colour.replace('#', '');
-    const cr = parseInt(hex.substring(0, 2), 16);
-    const cg = parseInt(hex.substring(2, 4), 16);
-    const cb = parseInt(hex.substring(4, 6), 16);
-
-    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseR * 1.2);
-    grad.addColorStop(0, `rgba(${cr}, ${cg}, ${cb}, ${opacity})`);
-    grad.addColorStop(0.6, `rgba(${cr}, ${cg}, ${cb}, ${opacity * 0.9})`);
-    grad.addColorStop(1, `rgba(${cr}, ${cg}, ${cb}, 0)`);
-    ctx.fillStyle = grad;
-    ctx.fill();
-
-    // permanent droplets
-    const dropletCount = 6 + Math.floor(Math.random() * 8);
-    for (let i = 0; i < dropletCount; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const dist = baseR * (0.5 + Math.random() * 1.4);
-      const dx = cx + Math.cos(a) * dist;
-      const dy = cy + Math.sin(a) * dist;
-      const rr = Math.max(1, Math.round(diameter * (0.02 + Math.random() * 0.06)));
-      ctx.beginPath();
-      ctx.arc(dx, dy, rr, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${cr}, ${cg}, ${cb}, ${0.9 - Math.random() * 0.6})`;
-      ctx.fill();
-    }
-
-    const texture = RenderTexture.from({ resource: canvas });
-    const sprite = new Sprite(texture);
+    // Use the shared splat generator to create a richer splat canvas
+    const canvas = createSplatCanvas(colour, diameter);
+    const sprite = new Sprite(RenderTexture.from({ resource: canvas }));
     sprite.anchor.set(0.5);
     sprite.position.set(x, y);
 
