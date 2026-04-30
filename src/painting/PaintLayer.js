@@ -107,8 +107,8 @@ export class PaintLayer {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, diameter, diameter);
 
-    const texture = RenderTexture.from({ resource: canvas });
-    const sprite = new Sprite(texture);
+    // Use the shared splat generator canvas for consistency with transient effects
+    const sprite = new Sprite(RenderTexture.from({ resource: canvas }));
     sprite.anchor.set(0.5);
     sprite.position.set(x, y);
 
