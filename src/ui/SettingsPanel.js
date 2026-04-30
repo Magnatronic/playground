@@ -197,7 +197,7 @@ export class SettingsPanel {
         { value: 'solid', label: 'Solid Circle' },
         { value: 'brush', label: 'Soft Brush' },
         { value: 'smoke', label: 'Smoke' },
-        { value: 'starburst', label: 'Starburst' },
+        { value: 'firework', label: 'Firework' },
         { value: 'splat', label: 'Splat (Paint Toss)' },
       ],
       selected: appState.get('effectType'),

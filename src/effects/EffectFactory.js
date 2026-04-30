@@ -8,7 +8,7 @@ const EFFECT_TYPES = {
   solid: SolidCircle,
   brush: SoftBrush,
   smoke: SmokeEffect,
-  starburst: StarburstEffect,
+  firework: StarburstEffect,
   splat: SplatEffect,
 };
 

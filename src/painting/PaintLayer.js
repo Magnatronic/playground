@@ -264,6 +264,103 @@ export class PaintLayer {
   }
 
   /**
+   * Stamp a firework burst mark — radiating streak lines + bright glowing centre.
+   * Placed at the burst position (above the launch point).
+   */
+  stampFirework(options) {
+    this.ensureTextureSize();
+    const { x, y, colour, size = 40, opacity = 0.9, impactMultiplier = 1 } = options;
+    const sc  = Math.max(0.6, impactMultiplier);
+    const R   = size * sc;
+
+    const hex = (colour || '#ffffff').replace('#', '');
+    const cr = parseInt(hex.substring(0, 2), 16);
+    const cg = parseInt(hex.substring(2, 4), 16);
+    const cb = parseInt(hex.substring(4, 6), 16);
+    const col = (a) => `rgba(${cr},${cg},${cb},${a.toFixed(3)})`;
+
+    // Burst position is above the press point (where the rocket exploded)
+    const burstX = x;
+    const burstY = y - R * 2.0;
+
+    const canvasSize = Math.ceil(R * 7);
+    const canvas = document.createElement('canvas');
+    canvas.width  = canvasSize;
+    canvas.height = canvasSize;
+    const ctx = canvas.getContext('2d');
+    const cx2 = canvasSize / 2;
+    const cy2 = canvasSize / 2;
+
+    // ── Radiating streak lines ───────────────────────────────────────────────
+    const streakCount = 20 + Math.floor(Math.random() * 16);
+    for (let i = 0; i < streakCount; i++) {
+      const ang  = (i / streakCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.2;
+      const len  = R * (1.2 + Math.random() * 1.8);
+      const w    = Math.max(0.8, R * (0.012 + Math.random() * 0.022));
+
+      ctx.save();
+      ctx.translate(cx2, cy2);
+      ctx.rotate(ang);
+      const sg = ctx.createLinearGradient(0, 0, len, 0);
+      sg.addColorStop(0,    `rgba(255,255,255,${(opacity * 0.95).toFixed(3)})`);
+      sg.addColorStop(0.12, col(opacity * 0.88));
+      sg.addColorStop(1,    col(0));
+      ctx.strokeStyle = sg;
+      ctx.lineWidth   = w;
+      ctx.lineCap     = 'round';
+      // Slight droop gravity curve
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(len * 0.55, (Math.random() - 0.5) * R * 0.18, len, R * 0.12);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // ── Burst glow centre ────────────────────────────────────────────────────
+    ctx.save();
+    ctx.filter = `blur(${Math.round(R * 0.25)}px)`;
+    const cg2 = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, R * 0.55);
+    cg2.addColorStop(0,    `rgba(255,255,255,${opacity.toFixed(3)})`);
+    cg2.addColorStop(0.35, col(opacity * 0.90));
+    cg2.addColorStop(0.75, col(opacity * 0.35));
+    cg2.addColorStop(1,    col(0));
+    ctx.fillStyle = cg2;
+    ctx.beginPath();
+    ctx.arc(cx2, cy2, R * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // ── Falling ember dots ───────────────────────────────────────────────────
+    const emberCount = 20 + Math.floor(Math.random() * 20);
+    for (let i = 0; i < emberCount; i++) {
+      const ang  = Math.random() * Math.PI * 2;
+      const dist = R * (0.6 + Math.pow(Math.random(), 0.5) * 2.2);
+      const ex   = cx2 + Math.cos(ang) * dist;
+      const ey   = cy2 + Math.sin(ang) * dist + dist * 0.15; // slight downward bias
+      if (ex < 1 || ex > canvasSize - 1 || ey < 1 || ey > canvasSize - 1) continue;
+      const er   = Math.max(0.5, R * (0.01 + Math.random() * 0.04));
+      ctx.beginPath();
+      ctx.arc(ex, ey, er, 0, Math.PI * 2);
+      ctx.fillStyle = col(opacity * (0.3 + Math.random() * 0.65));
+      ctx.fill();
+    }
+
+    // Stamp is centred on burstY (above press point)
+    const sprite = new Sprite(Texture.from(canvas));
+    sprite.anchor.set(0.5);
+    sprite.position.set(burstX, burstY);
+
+    if (this.blendMode === 'add') sprite.blendMode = 'add';
+    else if (this.blendMode === 'multiply') sprite.blendMode = 'multiply';
+    else if (this.blendMode === 'screen') sprite.blendMode = 'screen';
+
+    this.stampContainer.addChild(sprite);
+    this.app.renderer.render({ container: this.stampContainer, target: this.renderTexture, clear: false });
+    this.stampContainer.removeChild(sprite);
+    sprite.destroy();
+  }
+
+  /**
    * Stamp a splat (irregular blob + droplets) onto the paint layer.
    * Uses an offscreen canvas to draw an irregular shape and a handful of
    * permanent droplet marks, then stamps the resulting texture into the
