@@ -132,49 +132,122 @@ export class PaintLayer {
 
   /**
    * Stamp a smoke wisp onto the paint layer.
-   * Draws an overlapping cluster of blurred, semi-transparent blobs to leave
-   * a soft, airy permanent mark that looks like scorched/smudged smoke residue.
+   * Draws a dense irregular core + curling tendrils + scattered micro-particles
+   * to leave an organic, asymmetric smoke-stain mark.
    */
   stampSmoke(options) {
     this.ensureTextureSize();
-    const { x, y, colour, size = 40, opacity = 0.55, impactMultiplier = 1 } = options;
+    const { x, y, colour, size = 40, opacity = 0.85, impactMultiplier = 1 } = options;
     const scale = Math.max(0.5, impactMultiplier);
-    const spread = size * scale;
+    const R = size * scale;
 
     const hex = (colour || '#ffffff').replace('#', '');
     const cr = parseInt(hex.substring(0, 2), 16);
     const cg = parseInt(hex.substring(2, 4), 16);
     const cb = parseInt(hex.substring(4, 6), 16);
+    const col = (a) => `rgba(${cr},${cg},${cb},${a.toFixed(3)})`;
 
-    // Canvas large enough to hold the whole cloud + blur headroom
-    const canvasSize = Math.ceil(spread * 4.5);
+    // Canvas big enough for tendrils reaching upward
+    const canvasW = Math.ceil(R * 5);
+    const canvasH = Math.ceil(R * 7); // taller — smoke rises
     const canvas = document.createElement('canvas');
-    canvas.width = canvasSize;
-    canvas.height = canvasSize;
+    canvas.width = canvasW;
+    canvas.height = canvasH;
     const ctx = canvas.getContext('2d');
-    const cx2 = canvasSize / 2;
-    const cy2 = canvasSize / 2;
+    const cx2 = canvasW / 2;
+    const cy2 = canvasH * 0.62; // origin sits in lower half
 
-    // Draw 5–8 overlapping blurred blobs at random offsets
-    const blobCount = 5 + Math.floor(Math.random() * 4);
-    for (let i = 0; i < blobCount; i++) {
-      const bx = cx2 + (Math.random() - 0.5) * spread * 1.1;
-      const by = cy2 + (Math.random() - 0.5) * spread * 0.7;
-      const br = spread * (0.35 + Math.random() * 0.45);
-      const ba = opacity * (0.18 + Math.random() * 0.28);
+    // ── 1. Dense irregular impact core ─────────────────────────────────────
+    ctx.save();
+    ctx.filter = `blur(${Math.round(R * 0.22)}px)`;
+    const pts = 28;
+    ctx.beginPath();
+    for (let i = 0; i <= pts; i++) {
+      const a = (i / pts) * Math.PI * 2;
+      const noise =
+        Math.sin(a * 3.2) * 0.13 +
+        Math.sin(a * 7.1) * 0.07 +
+        (Math.random() * 0.22 - 0.11);
+      const rad = R * (0.55 + noise);
+      const px = cx2 + Math.cos(a) * rad;
+      const py = cy2 + Math.sin(a) * rad * 0.78; // slightly squashed vertically
+      if (i === 0) ctx.moveTo(px, py);
+      else         ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    const coreGrad = ctx.createRadialGradient(cx2, cy2 - R * 0.1, 0, cx2, cy2, R * 0.75);
+    coreGrad.addColorStop(0,    col(opacity * 0.95));
+    coreGrad.addColorStop(0.45, col(opacity * 0.78));
+    coreGrad.addColorStop(0.85, col(opacity * 0.35));
+    coreGrad.addColorStop(1,    col(0));
+    ctx.fillStyle = coreGrad;
+    ctx.fill();
+    ctx.restore();
+
+    // ── 2. Wispy tendrils curling upward ────────────────────────────────────
+    const tendrilCount = 4 + Math.floor(Math.random() * 5);
+    for (let t = 0; t < tendrilCount; t++) {
+      const startX = cx2 + (Math.random() - 0.5) * R * 0.9;
+      const startY = cy2 - R * (0.3 + Math.random() * 0.3);
+      const height  = R * (1.2 + Math.random() * 2.2);
+      const curl    = (Math.random() - 0.5) * R * 1.8; // horizontal curl at top
+      const midCurl = (Math.random() - 0.5) * R * 0.9;
+      const baseW   = Math.max(1.5, R * (0.04 + Math.random() * 0.11));
 
       ctx.save();
-      ctx.filter = `blur(${Math.round(br * 0.5)}px)`;
-      const grad = ctx.createRadialGradient(bx, by, 0, bx, by, br);
-      grad.addColorStop(0,    `rgba(${cr},${cg},${cb},${ba.toFixed(3)})`);
-      grad.addColorStop(0.55, `rgba(${cr},${cg},${cb},${(ba * 0.5).toFixed(3)})`);
-      grad.addColorStop(1,    `rgba(${cr},${cg},${cb},0)`);
-      ctx.fillStyle = grad;
+      ctx.filter = `blur(${Math.round(baseW * 1.8 + 1)}px)`;
+
+      // Build a tapered bezier strip: wide at base, pointed at tip
+      const cp1x = startX + midCurl * 0.4;
+      const cp1y = startY - height * 0.4;
+      const cp2x = startX + curl  * 0.7;
+      const cp2y = startY - height * 0.75;
+      const endX  = startX + curl;
+      const endY  = startY - height;
+
+      // Left edge (offset perpendicular to curve direction)
       ctx.beginPath();
-      ctx.arc(bx, by, br * 1.4, 0, Math.PI * 2);
+      ctx.moveTo(startX - baseW, startY);
+      ctx.bezierCurveTo(cp1x - baseW * 0.6, cp1y, cp2x - baseW * 0.2, cp2y, endX, endY);
+      ctx.bezierCurveTo(cp2x + baseW * 0.2, cp2y, cp1x + baseW * 0.6, cp1y, startX + baseW, startY);
+      ctx.closePath();
+
+      const tg = ctx.createLinearGradient(startX, startY, endX, endY);
+      tg.addColorStop(0,   col(opacity * (0.55 + Math.random() * 0.30)));
+      tg.addColorStop(0.5, col(opacity * (0.25 + Math.random() * 0.20)));
+      tg.addColorStop(1,   col(0));
+      ctx.fillStyle = tg;
       ctx.fill();
       ctx.restore();
     }
+
+    // ── 3. Scattered micro-particles (ash / ember dots) ─────────────────────
+    const particleCount = 18 + Math.floor(Math.random() * 20);
+    for (let p = 0; p < particleCount; p++) {
+      const ang  = Math.random() * Math.PI * 2;
+      const dist = R * (0.5 + Math.pow(Math.random(), 0.6) * 1.8);
+      const px   = cx2 + Math.cos(ang) * dist;
+      const py   = cy2 + Math.sin(ang) * dist * 0.7 - dist * 0.15; // bias upward
+      const pr   = Math.max(0.8, R * (0.015 + Math.random() * 0.055));
+      if (px < 1 || px > canvasW - 1 || py < 1 || py > canvasH - 1) continue;
+      ctx.beginPath();
+      ctx.arc(px, py, pr, 0, Math.PI * 2);
+      ctx.fillStyle = col(opacity * (0.25 + Math.random() * 0.55));
+      ctx.fill();
+    }
+
+    // ── 4. Final soft-glow halo (makes core look hot/luminous) ──────────────
+    ctx.save();
+    ctx.filter = `blur(${Math.round(R * 0.55)}px)`;
+    const haloGrad = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, R * 1.1);
+    haloGrad.addColorStop(0,   col(opacity * 0.38));
+    haloGrad.addColorStop(0.6, col(opacity * 0.12));
+    haloGrad.addColorStop(1,   col(0));
+    ctx.fillStyle = haloGrad;
+    ctx.beginPath();
+    ctx.arc(cx2, cy2, R * 1.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
 
     const sprite = new Sprite(Texture.from(canvas));
     sprite.anchor.set(0.5);
