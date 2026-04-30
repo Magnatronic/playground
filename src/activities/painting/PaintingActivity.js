@@ -91,7 +91,9 @@ export class PaintingActivity extends BaseActivity {
 
     if (this.effectType === 'splat') {
       this.paintLayer.stampSplat(stampOptions);
-    } else if (this.effectType === 'brush' || this.effectType === 'smoke') {
+    } else if (this.effectType === 'smoke') {
+      this.paintLayer.stampSmoke(stampOptions);
+    } else if (this.effectType === 'brush') {
       this.paintLayer.stampSoft(stampOptions);
     } else {
       this.paintLayer.stamp(stampOptions);
