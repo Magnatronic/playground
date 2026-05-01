@@ -2,108 +2,139 @@ import { Container, Graphics, Sprite, Texture, Ticker } from 'pixi.js';
 import { BaseEffect } from './BaseEffect.js';
 import { hexToNumber } from '../utils/colour.js';
 
-// Build a short glowing streak texture for trail particles
-const trailTextureCache = new Map();
-function getTrailTexture(colour, len, w) {
-  const key = `${colour}-${len}-${w}`;
-  if (trailTextureCache.has(key)) return trailTextureCache.get(key);
+// ── Burst streak texture (soft multi-pass glow, stroke-based, no fillRect) ───
+const streakTexCache = new Map();
+if (import.meta.hot) import.meta.hot.accept(() => streakTexCache.clear());
 
+function hexToRgb(hex) {
+  const h = (hex || '#ffffff').replace('#', '');
+  return {
+    r: parseInt(h.substring(0, 2), 16),
+    g: parseInt(h.substring(2, 4), 16),
+    b: parseInt(h.substring(4, 6), 16),
+  };
+}
+
+/**
+ * Creates a soft glowing streak texture using canvas strokes.
+ * Using stroke + lineCap:'round' gives natural soft edges without fillRect clipping.
+ */
+function getBurstStreakTex(colour, len, w) {
+  const key = `${colour}-${Math.round(len)}-${Math.round(w)}`;
+  if (streakTexCache.has(key)) return streakTexCache.get(key);
+
+  const pad = Math.ceil(w * 5);   // tail-end blur overflow room
+  const cw  = Math.ceil(len + pad);
+  const ch  = Math.ceil(w * 10); // tall so vertical blur doesn't clip
   const canvas = document.createElement('canvas');
-  canvas.width  = len;
-  canvas.height = w * 2;
+  canvas.width  = cw;
+  canvas.height = ch;
   const ctx = canvas.getContext('2d');
-  const cx = canvas.height / 2;
-  const g = ctx.createLinearGradient(0, 0, len, 0);
+  const cy = ch / 2;
+  const { r, g, b } = hexToRgb(colour);
 
-  const hex = (colour || '#ffffff').replace('#', '');
-  const r = parseInt(hex.substring(0, 2), 16);
-  const cg = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
+  const drawPass = (lw, blur, aHead) => {
+    ctx.save();
+    if (blur > 0) ctx.filter = `blur(${blur.toFixed(1)}px)`;
+    const gr = ctx.createLinearGradient(0, 0, len, 0);
+    gr.addColorStop(0,    `rgba(255,255,255,0)`);                                    // transparent at burst centre
+    gr.addColorStop(0.07, `rgba(255,255,255,${aHead.toFixed(2)})`);                  // peak near inner end
+    gr.addColorStop(0.2,  `rgba(${r},${g},${b},${(aHead * 0.92).toFixed(2)})`);
+    gr.addColorStop(1,    `rgba(${r},${g},${b},0)`);
+    ctx.strokeStyle = gr;
+    ctx.lineWidth   = lw;
+    ctx.lineCap     = 'round';
+    ctx.beginPath();
+    ctx.moveTo(1, cy);
+    ctx.lineTo(len, cy);
+    ctx.stroke();
+    ctx.restore();
+  };
 
-  g.addColorStop(0,    `rgba(255,255,255,0.95)`);
-  g.addColorStop(0.15, `rgba(${r},${cg},${b},0.9)`);
-  g.addColorStop(1,    `rgba(${r},${cg},${b},0)`);
-  ctx.save();
-  ctx.filter = `blur(${Math.max(1, Math.round(w * 0.6))}px)`;
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, len, canvas.height);
-  ctx.restore();
-
+  drawPass(w * 7,   Math.max(2, w * 2.2), 0.25); // wide outer glow
+  drawPass(w * 2.2, Math.max(1, w * 0.8), 0.65); // mid layer
+  drawPass(w * 0.5, 0,                    1.00); // bright core
   const tex = Texture.from(canvas);
-  trailTextureCache.set(key, tex);
+  streakTexCache.set(key, tex);
   return tex;
 }
 
 export class StarburstEffect extends BaseEffect {
   createEffect(container, options) {
     const { x, y, colour, size = 20, opacity = 0.95, impactMultiplier = 1 } = options;
-    const sc = Math.max(0.6, impactMultiplier);
+    const sc       = Math.max(0.6, impactMultiplier);
     const colorNum = hexToNumber(colour);
-    const group = new Container();
+    const group    = new Container();
     container.addChild(group);
 
     // ── Phase 1: rocket launch ──────────────────────────────────────────────
-    // The rocket flies upward for ~400 ms, leaving a bright streak.
     const launchDist = size * sc * 2.5 + Math.random() * size * sc;
     const burstX     = x + (Math.random() - 0.5) * size * sc * 0.6;
     const burstY     = y - launchDist;
     const launchMs   = 280 + Math.random() * 180;
+    const maxW       = Math.max(2, size * sc * 0.18);
 
     // Rocket head — small bright dot
     const rocket = new Graphics();
-    rocket.circle(0, 0, Math.max(1.5, size * sc * 0.08));
+    rocket.circle(0, 0, Math.max(1.5, size * sc * 0.10));
     rocket.fill(0xffffff);
     rocket.position.set(x, y);
     rocket.alpha = opacity;
     group.addChild(rocket);
 
-    // Trail sprites accumulated in an array
-    const trailSprites = [];
-    const trailTex = getTrailTexture(colour, Math.round(size * sc * 1.8), Math.max(2, size * sc * 0.12));
+    // Trail drawn as a smooth continuous Graphics line — redraw each tick.
+    // This avoids sprite-blob artefacts, wrong rotation, and solid edges entirely.
+    const trail      = new Graphics();
+    const posHistory = [{ x, y }];
+    const maxPts     = 30;
+    group.addChild(trail);
 
-    // Phase 2 state — populated when rocket arrives
     let phase2Started = false;
-
-    // Ticker for rocket phase
     const launchStart = performance.now();
+
     const launchTick = () => {
-      const now = performance.now();
-      const t   = Math.min((now - launchStart) / launchMs, 1);
-      // Ease in-out upward
+      const now  = performance.now();
+      const t    = Math.min((now - launchStart) / launchMs, 1);
       const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-      rocket.x = x  + (burstX - x)  * ease;
-      rocket.y = y  + (burstY - y)  * ease;
+      rocket.x = x  + (burstX - x) * ease;
+      rocket.y = y  + (burstY - y) * ease;
 
-      // Spawn trail particle every few ticks
-      if (Math.random() < 0.55) {
-        const ts = new Sprite(trailTex);
-        ts.anchor.set(1, 0.5); // tip of trail follows rocket
-        ts.position.set(rocket.x, rocket.y);
-        // Rotate trail to point downward (away from direction of travel)
-        ts.rotation = Math.PI / 2 + Math.PI / 2; // point down (angle = π)
-        ts.alpha    = opacity * 0.7;
-        ts._born    = now;
-        ts._life    = 200 + Math.random() * 180;
-        group.addChild(ts);
-        trailSprites.push(ts);
-      }
+      posHistory.push({ x: rocket.x, y: rocket.y });
+      if (posHistory.length > maxPts) posHistory.shift();
 
-      // Age out old trail particles
-      for (const ts of trailSprites) {
-        const age = now - ts._born;
-        ts.alpha = opacity * 0.7 * Math.max(0, 1 - age / ts._life);
+      // Redraw the full trail from positions — 3 passes: glow, mid, core
+      trail.clear();
+      const n = posHistory.length;
+      if (n >= 2) {
+        for (let pass = 0; pass < 3; pass++) {
+          for (let i = 1; i < n; i++) {
+            // p=0 at oldest tail, p=1 at newest head (rocket tip)
+            const p    = i / (n - 1);
+            const prev = posHistory[i - 1];
+            const curr = posHistory[i];
+            trail.moveTo(prev.x, prev.y);
+            trail.lineTo(curr.x, curr.y);
+            if (pass === 0) {
+              // Wide outer glow
+              trail.stroke({ color: colorNum, alpha: p * opacity * 0.18, width: maxW * 5 * p });
+            } else if (pass === 1) {
+              // Mid layer
+              trail.stroke({ color: colorNum, alpha: p * opacity * 0.55, width: maxW * 1.8 * p });
+            } else {
+              // Bright white core
+              trail.stroke({ color: 0xffffff, alpha: p * opacity * 0.95, width: maxW * 0.45 * p });
+            }
+          }
+        }
       }
 
       if (t >= 1 && !phase2Started) {
         phase2Started = true;
         Ticker.shared.remove(launchTick);
-        // Remove rocket and trail
         if (rocket.parent) rocket.parent.removeChild(rocket);
         rocket.destroy();
-        for (const ts of trailSprites) {
-          if (ts.parent) ts.parent.removeChild(ts);
-          ts.destroy();
-        }
+        if (trail.parent)  trail.parent.removeChild(trail);
+        trail.destroy();
         startBurst(burstX, burstY);
       }
     };
@@ -114,11 +145,11 @@ export class StarburstEffect extends BaseEffect {
       const streakCount = Math.round((20 + Math.random() * 20) * sc);
       const streakLen   = size * sc * (1.4 + Math.random() * 1.2);
       const streakW     = Math.max(2, size * sc * 0.10);
-      const burstTex    = getTrailTexture(colour, Math.round(streakLen), streakW);
+      const burstTex    = getBurstStreakTex(colour, Math.round(streakLen), streakW);
       const burstMs     = 700 + Math.random() * 400;
 
       const streaks = [];
-      const flash   = new Graphics();
+      const flash = new Graphics();
       flash.circle(0, 0, size * sc * 0.55);
       flash.fill(0xffffff);
       flash.position.set(bx, by);
@@ -129,7 +160,7 @@ export class StarburstEffect extends BaseEffect {
         const angle = (i / streakCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.25;
         const speed = size * sc * (0.055 + Math.random() * 0.055);
         const s = new Sprite(burstTex);
-        s.anchor.set(0, 0.5);     // tail end anchored at burst center
+        s.anchor.set(0, 0.5); // bright left end at burst centre
         s.position.set(bx, by);
         s.rotation = angle;
         s.alpha    = opacity;
@@ -140,7 +171,6 @@ export class StarburstEffect extends BaseEffect {
         streaks.push(s);
       }
 
-      // Small secondary sparks (embers)
       const emberCount = Math.round(30 * sc);
       const embers = [];
       for (let i = 0; i < emberCount; i++) {
@@ -165,27 +195,24 @@ export class StarburstEffect extends BaseEffect {
         const now = performance.now();
         const t   = Math.min((now - burstStart) / burstMs, 1);
 
-        // Flash fades quickly
         flash.alpha = opacity * 0.9 * Math.max(0, 1 - t * 6);
 
-        // Streaks travel outward and fade
         for (const s of streaks) {
-          s.x += s._vx;
-          s.y += s._vy;
-          s._vy += 0.04 * sc; // gravity droop
-          s._vx *= 0.978;
-          s._vy *= 0.978;
-          s.alpha = opacity * (1 - t * t); // quadratic fade
+          s.x    += s._vx;
+          s.y    += s._vy;
+          s._vy  += 0.04 * sc; // gravity droop
+          s._vx  *= 0.978;
+          s._vy  *= 0.978;
+          s.alpha = opacity * (1 - t * t);
         }
 
-        // Embers arc and fade
         for (const e of embers) {
           const age = now - e._born;
           const ep  = Math.min(age / e._life, 1);
           e.alpha = opacity * (1 - ep);
-          e.x += e._vx;
-          e.y += e._vy;
-          e._vy += 0.06 * sc; // gravity
+          e.x    += e._vx;
+          e.y    += e._vy;
+          e._vy  += 0.06 * sc;
         }
 
         if (t >= 1) {
