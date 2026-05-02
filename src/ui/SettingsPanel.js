@@ -703,14 +703,6 @@ export class SettingsPanel {
     const container = document.createElement('div');
     container.className = 'pg-actions';
 
-    const clearBtn = document.createElement('button');
-    clearBtn.className = 'pg-action-btn pg-action-btn--danger';
-    clearBtn.textContent = 'Clear Canvas';
-    clearBtn.setAttribute('tabindex', '-1');
-    clearBtn.addEventListener('click', () => {
-      appState.set('_action', 'clear');
-    });
-
     const resetBtn = document.createElement('button');
     resetBtn.className = 'pg-action-btn';
     resetBtn.textContent = 'Reset Defaults';
@@ -720,7 +712,6 @@ export class SettingsPanel {
       this._refreshAllControls();
     });
 
-    container.appendChild(clearBtn);
     container.appendChild(resetBtn);
     return container;
   }

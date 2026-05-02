@@ -20,6 +20,7 @@ const HINT_FRAMES = 22;
 
 const SONG_MAP_PER_ROW = 8;
 const SONG_MAP_GAP = 8;
+const DUST_MAX_PARTICLES = 1400;
 
 const FREE_PLAY_FALLBACK = [
   { name: 'C', freq: 261.63 },
@@ -50,6 +51,14 @@ function lerpColor(fromCol, toCol, t) {
   return (nr << 16) | (ng << 8) | nb;
 }
 
+function clamp01(v) {
+  return Math.max(0, Math.min(1, v));
+}
+
+function randRange(min, max) {
+  return min + Math.random() * (max - min);
+}
+
 export class SongActivity extends BaseActivity {
   constructor() {
     super();
@@ -67,7 +76,9 @@ export class SongActivity extends BaseActivity {
     this._bgGfx = null;
     this._bgColorCurrent = 0x1a1a2e;
     this._bgColorTarget = 0x1a1a2e;
-    this._bgBursts = [];
+    this._bgPhase = Math.random() * Math.PI * 2;
+    this._dustParticles = [];
+    this._dustSpawnCarry = 0;
 
     this._songMapCells = [];
   }
@@ -164,7 +175,8 @@ export class SongActivity extends BaseActivity {
 
     this._bgGfx?.destroy();
     this._bgGfx = null;
-    this._bgBursts = [];
+    this._dustParticles = [];
+    this._dustSpawnCarry = 0;
 
     this._container.removeChildren();
 
@@ -318,20 +330,84 @@ export class SongActivity extends BaseActivity {
     }
 
     this._bgGfx.clear();
-    this._bgGfx.rect(0, 0, this.app.screen.width, this.app.screen.height);
-    this._bgGfx.fill({ color: this._bgColorCurrent, alpha: 0.26 });
+    const w = this.app.screen.width;
+    const h = this.app.screen.height;
+    const particleDensity = clamp01(this._dustParticles.length / 140);
 
-    // Visible but soft colour ripples tied to free-play presses.
-    this._bgBursts.forEach((burst) => {
-      const progress = 1 - burst.life;
-      const radius = 40 + progress * 380;
-      const alpha = 0.34 * burst.life;
+    // Base wash stays stable so the field feels calm while particles carry movement.
+    this._bgGfx.rect(0, 0, w, h);
+    this._bgGfx.fill({ color: lerpColor(0x161a34, this._bgColorCurrent, 0.44), alpha: 0.26 });
 
-      this._bgGfx.circle(burst.x, burst.y, radius);
-      this._bgGfx.fill({ color: burst.color, alpha });
-      this._bgGfx.circle(burst.x, burst.y, Math.max(8, radius * 0.46));
-      this._bgGfx.fill({ color: burst.color, alpha: alpha * 0.42 });
+    // Very subtle full-screen tint lift as dust density grows.
+    this._bgGfx.rect(0, 0, w, h);
+    this._bgGfx.fill({ color: lerpColor(0x1a1f3d, this._bgColorTarget, 0.28), alpha: 0.04 + particleDensity * 0.03 });
+
+    for (let i = 0; i < this._dustParticles.length; i++) {
+      this._drawDustParticle(this._dustParticles[i]);
+    }
+  }
+
+  _drawDustParticle(particle) {
+    const lifeAlpha = clamp01(particle.life);
+    if (lifeAlpha <= 0.01) return;
+
+    const a = particle.alpha * lifeAlpha;
+    if (a <= 0.004) return;
+
+    const r = particle.size;
+    // Two overlapping soft ellipses, slightly offset, give a tiny organic smear
+    // without any recognisable shape.
+    this._bgGfx.ellipse(particle.x, particle.y, r, r * particle.squeeze);
+    this._bgGfx.fill({ color: particle.color, alpha: a });
+    this._bgGfx.ellipse(
+      particle.x + particle.ox,
+      particle.y + particle.oy,
+      r * 0.65,
+      r * 0.65 * particle.squeeze,
+    );
+    this._bgGfx.fill({ color: particle.color, alpha: a * 0.55 });
+  }
+
+  _spawnDustParticle({ x, y, color, boost = 0 }) {
+    // Full-circle drift so particles spread in every direction.
+    const angle = Math.random() * Math.PI * 2;
+    const speed = randRange(0.12, 0.45) * (1 + boost * 0.6);
+    // Tiny random offset for the secondary smear ellipse.
+    const smearAngle = Math.random() * Math.PI * 2;
+    const smearDist = randRange(1, 3);
+
+    this._dustParticles.push({
+      x,
+      y,
+      color,
+      // radius: tiny so they read as individual mist particles, not blobs
+      size: randRange(1.5, 4.0 + boost * 1.5),
+      // squeeze gives an irregular ellipse instead of a perfect circle
+      squeeze: randRange(0.55, 1.0),
+      // secondary smear offset
+      ox: Math.cos(smearAngle) * smearDist,
+      oy: Math.sin(smearAngle) * smearDist,
+      alpha: randRange(0.18, 0.38 + boost * 0.08),
+      life: randRange(1.0, 1.8),
+      driftX: Math.cos(angle) * speed,
+      driftY: Math.sin(angle) * speed,
+      wobblePhase: randRange(0, Math.PI * 2),
+      wobbleSpeed: randRange(0.15, 0.55),
+      wobbleAmp: randRange(0.06, 0.22),
+      fadeRate: randRange(0.00030, 0.00065),
     });
+  }
+
+  _spawnAmbientDust(count = 1) {
+    const w = this.app.screen.width;
+    const h = this.app.screen.height;
+    for (let i = 0; i < count; i++) {
+      const x = randRange(0, w);
+      const y = randRange(h * 0.15, h * 0.95);
+      const mix = 0.25 + 0.5 * Math.random();
+      const color = lerpColor(this._bgColorCurrent, this._bgColorTarget, mix);
+      this._spawnDustParticle({ x, y, color, boost: 0 });
+    }
   }
 
   _refreshSongMap() {
@@ -436,11 +512,19 @@ export class SongActivity extends BaseActivity {
       if (tile) {
         this._bgColorTarget = hexToNumber(tile.colour);
         const tileSize = this._tileSize();
-        const x = this._tileStartX() + idx * (tileSize + TILE_GAP) + tileSize / 2;
-        const y = this._tileY() + tileSize / 2;
-        this._bgBursts.push({ x, y, color: hexToNumber(tile.colour), life: 1.0 });
-        if (this._bgBursts.length > 8) {
-          this._bgBursts.shift();
+        const tx = this._tileStartX() + idx * (tileSize + TILE_GAP) + tileSize / 2;
+        const ty = this._tileY() + tileSize / 2;
+        const load = clamp01(this._dustParticles.length / DUST_MAX_PARTICLES);
+        const burstCount = Math.round(90 * (1 - load));
+        if (burstCount > 0) {
+          for (let i = 0; i < burstCount; i++) {
+            this._spawnDustParticle({
+              x: tx + randRange(-tileSize * 0.48, tileSize * 0.48),
+              y: ty + randRange(-tileSize * 0.34, tileSize * 0.34),
+              color: hexToNumber(tile.colour),
+              boost: 1,
+            });
+          }
         }
       }
 
@@ -512,11 +596,36 @@ export class SongActivity extends BaseActivity {
 
   update(delta) {
     if (this._songMode === 'free') {
-      const t = Math.min(1, (delta / 60) * 0.22);
+      const dt = Math.max(0.3, delta);
+      this._bgPhase += (dt / 60) * 0.45;
+
+      const t = Math.min(1, (dt / 60) * 0.045);
       this._bgColorCurrent = lerpColor(this._bgColorCurrent, this._bgColorTarget, t);
-      this._bgBursts = this._bgBursts
-        .map((burst) => ({ ...burst, life: burst.life - (delta / 60) * 0.08 }))
-        .filter((burst) => burst.life > 0);
+
+      // Only spawn when below cap — no overflow culling needed, natural fade cleans up.
+      const load = clamp01(this._dustParticles.length / DUST_MAX_PARTICLES);
+      if (load < 1) {
+        const ambientRate = 8.0 + (18.0 - 8.0) * (1 - load);
+        this._dustSpawnCarry += (dt / 60) * ambientRate;
+        while (this._dustSpawnCarry >= 1 && this._dustParticles.length < DUST_MAX_PARTICLES) {
+          this._spawnAmbientDust(1);
+          this._dustSpawnCarry -= 1;
+        }
+      }
+
+      for (let i = this._dustParticles.length - 1; i >= 0; i--) {
+        const dust = this._dustParticles[i];
+        dust.wobblePhase += dust.wobbleSpeed * (dt / 60);
+        dust.x += dust.driftX * dt + Math.sin(dust.wobblePhase) * dust.wobbleAmp * dt;
+        dust.y += dust.driftY * dt;
+        dust.life -= dust.fadeRate * dt;
+
+        const sh = this.app.screen.height;
+        if (dust.life <= 0 || dust.y < -80 || dust.y > sh + 80 || dust.x < -80 || dust.x > this.app.screen.width + 80) {
+          this._dustParticles.splice(i, 1);
+        }
+      }
+
       this._refreshBackgroundLayer();
     }
 
