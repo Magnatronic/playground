@@ -24,6 +24,18 @@ const DEFAULTS = {
   // Switch Profiles — initialized empty, populated by AppShell from SwitchManager
   switchProfiles: [],
 
+  // Song
+  songId: 'twinkle',
+  songMode: 'rhythm',
+  freePlayNotes: [
+    { name: 'C', freq: 261.63 },
+    { name: 'D', freq: 293.66 },
+    { name: 'E', freq: 329.63 },
+    { name: 'F', freq: 349.23 },
+    { name: 'G', freq: 392.00 },
+    { name: 'A', freq: 440.00 },
+  ],
+
   // Music
   musicScale: 'pentatonic',
   musicInstrument: 'bells',

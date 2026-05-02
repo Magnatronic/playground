@@ -511,6 +511,50 @@
   border-color: var(--pg-text-primary);
 }
 
+/* ===== Free Play Note Mapping ===== */
+.pg-free-note-row {
+  display: grid;
+  grid-template-columns: 22px 56px 1fr;
+  align-items: center;
+  gap: var(--pg-space-sm);
+  padding: var(--pg-space-xs) 0;
+}
+
+.pg-free-note-row__swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--pg-border);
+}
+
+.pg-free-note-row__label {
+  font-family: var(--pg-font);
+  font-size: var(--pg-font-size-sm);
+  color: var(--pg-text-secondary);
+  font-weight: 600;
+}
+
+.pg-free-note-row__select {
+  min-height: 40px;
+  padding: 8px 10px;
+  border-radius: var(--pg-radius-sm);
+  border: 2px solid var(--pg-border);
+  background: var(--pg-bg-card);
+  color: var(--pg-text-primary);
+  font-family: var(--pg-font);
+  font-size: var(--pg-font-size-sm);
+}
+
+.pg-free-note-row__select option {
+  color: #0f1222;
+  background: #ffffff;
+}
+
+.pg-free-note-row__select:focus {
+  outline: none;
+  border-color: var(--pg-accent);
+}
+
 /* ===== Switch Profile Row ===== */
 .pg-switch-row {
   display: flex;

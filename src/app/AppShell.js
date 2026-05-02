@@ -281,6 +281,13 @@ export class AppShell {
       subs.push(appState.subscribe('effectScatter', (v) => { activity._effectScatter = v; }));
     }
 
+    // Song-specific
+    if (activityId === 'song') {
+      subs.push(appState.subscribe('songId',   (v) => activity.setSong?.(v)));
+      subs.push(appState.subscribe('songMode', (v) => activity.setSongMode?.(v)));
+      subs.push(appState.subscribe('freePlayNotes', (v) => activity.setFreePlayNotes?.(v)));
+    }
+
     // Screen Fill-specific
     if (activityId === 'screen-fill') {
       if (activity.setFillMode) {

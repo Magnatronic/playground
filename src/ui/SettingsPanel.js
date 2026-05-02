@@ -4,8 +4,28 @@ import { createToggle } from './components/ToggleButton.js';
 import { createSlider } from './components/SliderControl.js';
 import { createOptionGroup } from './components/OptionGroup.js';
 import { createColourSwatch } from './components/ColourSwatch.js';
+import { SONGS } from '../activities/song/songs.js';
 
 const SWITCH_KEYS = new Set(['Space', 'Enter', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'F7', 'F8']);
+const FREE_PLAY_SWITCH_LABELS = ['Space', 'Enter', '\u2191', '\u2193', '\u2190', '\u2192'];
+const FREE_PLAY_NOTE_OPTIONS = [
+  { name: 'C', freq: 261.63 },
+  { name: 'C#', freq: 277.18 },
+  { name: 'D', freq: 293.66 },
+  { name: 'D#', freq: 311.13 },
+  { name: 'E', freq: 329.63 },
+  { name: 'F', freq: 349.23 },
+  { name: 'F#', freq: 369.99 },
+  { name: 'G', freq: 392.0 },
+  { name: 'G#', freq: 415.3 },
+  { name: 'A', freq: 440.0 },
+  { name: 'A#', freq: 466.16 },
+  { name: 'B', freq: 493.88 },
+];
+
+function findFreePlayNoteByName(name) {
+  return FREE_PLAY_NOTE_OPTIONS.find((n) => n.name === name) || FREE_PLAY_NOTE_OPTIONS[0];
+}
 
 export class SettingsPanel {
   constructor({ onClose }) {
@@ -16,6 +36,8 @@ export class SettingsPanel {
     this._visibleSections = [];
     this._unsubscribers = [];
     this._activeColourPicker = null;
+    this._freePlayNoteSelects = [];
+    this._freePlayNoteSwatches = [];
   }
 
   mount(parent) {
@@ -73,11 +95,15 @@ export class SettingsPanel {
 
   _buildSections() {
     this._sections.sound = this._createSection('Sound', this._buildSoundContent(), true);
+    this._sections.soundSong = this._createSection('Sound', this._buildSongSoundContent(), true);
     this._sections.positionMode = this._createSection('Position Mode', this._buildPositionModeContent(), true);
     this._sections.effectType = this._createSection('Effect Type', this._buildEffectTypeContent(), true);
     this._sections.effectSettings = this._createSection('Effect Settings', this._buildEffectSettingsContent(), true);
     this._sections.blendMode = this._createSection('Blend Mode', this._buildBlendModeContent(), true);
     this._sections.fillMode = this._createSection('Fill Mode', this._buildFillModeContent(), true);
+    this._sections.songSelect = this._createSection('Song', this._buildSongSelectContent(), true);
+    this._sections.songMode = this._createSection('Play Mode', this._buildSongModeContent(), true);
+    this._sections.freePlayNotes = this._createSection('Free Play Notes', this._buildFreePlayNotesContent(), true);
     this._sections.switches = this._createSection('Switches', this._buildSwitchesContent(), false);
     this._sections.actions = this._createSection('Actions', this._buildActionsContent(), true);
 
@@ -419,6 +445,186 @@ export class SettingsPanel {
     if (this._mosaicOptions) this._mosaicOptions.style.display = mode === 'mosaic' ? '' : 'none';
   }
 
+  _buildSongSoundContent() {
+    // Streamlined sound section for Song Mode — no scale or voice mode (songs have fixed pitches)
+    const container = document.createElement('div');
+
+    this._songMuteToggle = createToggle({
+      label: 'Mute',
+      value: appState.get('muted'),
+      onChange: (v) => appState.set('muted', v),
+    });
+    container.appendChild(this._songMuteToggle);
+
+    const sep = () => { const d = document.createElement('div'); d.style.marginTop = '14px'; return d; };
+
+    this._songInstrumentGroup = createOptionGroup({
+      label: 'Instrument',
+      options: [
+        { value: 'bells',     label: 'Bells' },
+        { value: 'piano',     label: 'Piano' },
+        { value: 'marimba',   label: 'Marimba' },
+        { value: 'xylophone', label: 'Xylophone' },
+        { value: 'synth',     label: 'Synth' },
+      ],
+      selected: appState.get('musicInstrument'),
+      onChange: (v) => appState.set('musicInstrument', v),
+    });
+    const instrWrap = sep();
+    instrWrap.appendChild(this._songInstrumentGroup);
+    container.appendChild(instrWrap);
+
+    this._songNoteLengthGroup = createOptionGroup({
+      label: 'Note length',
+      options: [
+        { value: 'short',  label: 'Short' },
+        { value: 'medium', label: 'Medium' },
+        { value: 'long',   label: 'Long' },
+      ],
+      selected: appState.get('musicNoteLength'),
+      onChange: (v) => appState.set('musicNoteLength', v),
+    });
+    const noteLenWrap = sep();
+    noteLenWrap.appendChild(this._songNoteLengthGroup);
+    container.appendChild(noteLenWrap);
+
+    this._unsubscribers.push(
+      appState.subscribe('muted',           (v) => this._songMuteToggle.setValue(v)),
+      appState.subscribe('musicInstrument', (v) => this._songInstrumentGroup.setValue(v)),
+      appState.subscribe('musicNoteLength', (v) => this._songNoteLengthGroup.setValue(v)),
+    );
+
+    return container;
+  }
+
+  _buildSongSelectContent() {
+    const container = document.createElement('div');
+
+    this._songSelectGroup = createOptionGroup({
+      label: 'Choose a song',
+      options: SONGS.map((s) => ({ value: s.id, label: s.name })),
+      selected: appState.get('songId'),
+      onChange: (v) => appState.set('songId', v),
+    });
+    container.appendChild(this._songSelectGroup);
+
+    this._unsubscribers.push(
+      appState.subscribe('songId', (v) => this._songSelectGroup.setValue(v)),
+    );
+
+    return container;
+  }
+
+  _buildSongModeContent() {
+    const container = document.createElement('div');
+
+    this._songModeGroup = createOptionGroup({
+      label: 'How to play',
+      options: [
+        { value: 'rhythm',  label: 'Rhythm Tap \u2014 any switch, right notes' },
+        { value: 'guided',  label: 'Guided \u2014 press the correct colour' },
+        { value: 'free',    label: 'Free Play \u2014 explore the notes' },
+      ],
+      selected: appState.get('songMode'),
+      onChange: (v) => appState.set('songMode', v),
+    });
+    container.appendChild(this._songModeGroup);
+
+    this._unsubscribers.push(
+      appState.subscribe('songMode', (v) => this._songModeGroup.setValue(v)),
+    );
+
+    return container;
+  }
+
+  _buildFreePlayNotesContent() {
+    const container = document.createElement('div');
+    this._freePlayNoteSelects = [];
+    this._freePlayNoteSwatches = [];
+
+    const notes = appState.get('freePlayNotes') || [];
+    const profiles = appState.get('switchProfiles') || [];
+
+    for (let i = 0; i < FREE_PLAY_SWITCH_LABELS.length; i++) {
+      const row = document.createElement('div');
+      row.className = 'pg-free-note-row';
+
+      const profile = profiles.find((p) => p.index === i);
+      const swatch = document.createElement('span');
+      swatch.className = 'pg-free-note-row__swatch';
+      swatch.style.backgroundColor = profile?.colour || '#888888';
+      this._freePlayNoteSwatches.push(swatch);
+
+      const label = document.createElement('span');
+      label.className = 'pg-free-note-row__label';
+      label.textContent = FREE_PLAY_SWITCH_LABELS[i];
+
+      const select = document.createElement('select');
+      select.className = 'pg-free-note-row__select';
+      select.setAttribute('tabindex', '-1');
+      FREE_PLAY_NOTE_OPTIONS.forEach((note) => {
+        const option = document.createElement('option');
+        option.value = note.name;
+        option.textContent = note.name;
+        select.appendChild(option);
+      });
+
+      const selectedName = notes[i]?.name || FREE_PLAY_NOTE_OPTIONS[i % FREE_PLAY_NOTE_OPTIONS.length].name;
+      select.value = selectedName;
+      select.addEventListener('change', () => {
+        const next = (appState.get('freePlayNotes') || []).slice(0, FREE_PLAY_SWITCH_LABELS.length);
+        while (next.length < FREE_PLAY_SWITCH_LABELS.length) {
+          const fb = FREE_PLAY_NOTE_OPTIONS[next.length % FREE_PLAY_NOTE_OPTIONS.length];
+          next.push({ name: fb.name, freq: fb.freq });
+        }
+
+        const note = findFreePlayNoteByName(select.value);
+        next[i] = { name: note.name, freq: note.freq };
+        appState.set('freePlayNotes', next);
+      });
+      select.addEventListener('keydown', (e) => {
+        if (SWITCH_KEYS.has(e.code)) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      });
+
+      this._freePlayNoteSelects.push(select);
+
+      row.appendChild(swatch);
+      row.appendChild(label);
+      row.appendChild(select);
+      container.appendChild(row);
+    }
+
+    this._unsubscribers.push(
+      appState.subscribe('freePlayNotes', () => this._syncFreePlayNoteControls()),
+      appState.subscribe('switchProfiles', () => this._syncFreePlayNoteSwatches()),
+    );
+
+    return container;
+  }
+
+  _syncFreePlayNoteControls() {
+    const notes = appState.get('freePlayNotes') || [];
+    this._freePlayNoteSelects.forEach((select, i) => {
+      if (!select) return;
+      const noteName = notes[i]?.name;
+      if (noteName) {
+        select.value = noteName;
+      }
+    });
+  }
+
+  _syncFreePlayNoteSwatches() {
+    const profiles = appState.get('switchProfiles') || [];
+    this._freePlayNoteSwatches.forEach((swatch, i) => {
+      if (!swatch) return;
+      const profile = profiles.find((p) => p.index === i);
+      swatch.style.backgroundColor = profile?.colour || '#888888';
+    });
+  }
+
   _buildSwitchesContent() {
     const container = document.createElement('div');
     this._switchRows = [];
@@ -534,6 +740,8 @@ export class SettingsPanel {
     if (this._barThicknessSlider) this._barThicknessSlider.setValue(appState.get('barThickness'));
     if (this._tilePatternGroup) this._tilePatternGroup.setValue(appState.get('tilePattern'));
     if (this._tileSizeSlider) this._tileSizeSlider.setValue(appState.get('tileSize'));
+    this._syncFreePlayNoteControls();
+    this._syncFreePlayNoteSwatches();
     this._updateSweepVisibility();
     this._updateFillSubOptions();
   }

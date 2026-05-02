@@ -2,13 +2,14 @@ import { activityRegistry } from '../app/ActivityRegistry.js';
 import { appState } from '../app/AppState.js';
 import { createColourSwatch } from './components/ColourSwatch.js';
 import { createSlider } from './components/SliderControl.js';
-import { iconBrush, iconTarget, iconChevronDown, iconChevronUp } from './icons.js';
+import { iconBrush, iconTarget, iconMusic, iconChevronDown, iconChevronUp } from './icons.js';
 
 const SWITCH_KEYS = new Set(['Space', 'Enter', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'F7', 'F8']);
 
 const ICON_MAP = {
   brush: iconBrush,
   target: iconTarget,
+  music: iconMusic,
 };
 
 export class HomeScreen {
