@@ -220,6 +220,7 @@ export class AppShell {
     // Create new activity
     const activity = new meta.ActivityClass();
     activity.init(this.pixiApp);
+    audioManager.resetMelody(); // reset shared melody counter for fresh session
 
     // Wire AppState subscriptions for this activity
     this._wireActivityState(activity, id);

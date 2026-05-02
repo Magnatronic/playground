@@ -1,10 +1,34 @@
-const PRESS_FREQUENCIES = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5, 1174.66, 1318.51];
+import { appState } from '../app/AppState.js';
+
+// ── Musical scales — each in a distinct pitch register for clear mood contrast ─
+const SCALES = {
+  // Pentatonic: comfortable middle range — always safe, no wrong notes
+  pentatonic: [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00],
+  // Blues: low/dark bass range — deep and soulful
+  blues:      [110.00, 130.81, 146.83, 155.56, 164.81, 196.00, 220.00, 261.63, 293.66, 311.13, 329.63, 392.00, 440.00],
+  // Bright (Major): upper mid range — happy and cheerful
+  major:      [523.25, 587.33, 659.25, 698.46, 783.99, 880.00, 987.77, 1046.50, 1174.66, 1318.51],
+  // Heroic (Dorian): wide bass-to-mid range — dramatic and bold
+  dorian:     [130.81, 146.83, 155.56, 174.61, 196.00, 220.00, 233.08, 261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 466.16, 523.25],
+  // Dreamy (Lydian): high ethereal range — floaty and magical
+  lydian:     [349.23, 392.00, 440.00, 493.88, 523.25, 587.33, 659.25, 698.46, 783.99, 880.00, 987.77, 1046.50, 1174.66, 1318.51],
+};
+
+// ── Instrument presets ────────────────────────────────────────────────────────
+const INSTRUMENTS = {
+  bells:     { waveType: 'sine',     attackMs: 5,  decayMs: 1200, durationMs: 1400, volume: 0.25 },
+  piano:     { waveType: 'triangle', attackMs: 8,  decayMs: 500,  durationMs: 600,  volume: 0.30 },
+  marimba:   { waveType: 'triangle', attackMs: 3,  decayMs: 280,  durationMs: 350,  volume: 0.30 },
+  xylophone: { waveType: 'sine',     attackMs: 2,  decayMs: 180,  durationMs: 220,  volume: 0.28 },
+  synth:     { waveType: 'sawtooth', attackMs: 10, decayMs: 300,  durationMs: 380,  volume: 0.22 },
+};
 
 export class AudioManager {
   constructor() {
     this._audioContext = null;
     this._masterGain = null;
     this._muted = false;
+    this._lastNoteIndex = -1; // tracks last played index to avoid immediate repeats
   }
 
   _ensureContext() {
@@ -47,6 +71,10 @@ export class AudioManager {
     osc.type = waveType;
     osc.frequency.setValueAtTime(freq, startAt);
 
+    // Small release tail added after decayEnd to prevent click on note cutoff
+    const releaseSec = 0.025; // 25 ms soft tail
+    const releaseEnd = stopAt + releaseSec;
+
     gainNode.gain.setValueAtTime(0, startAt);
     if (attackSec > 0) {
       gainNode.gain.linearRampToValueAtTime(volume, peakTime);
@@ -54,7 +82,7 @@ export class AudioManager {
       gainNode.gain.setValueAtTime(volume, startAt);
     }
     gainNode.gain.linearRampToValueAtTime(0.0001, decayEnd);
-    gainNode.gain.setValueAtTime(0.0001, stopAt);
+    gainNode.gain.exponentialRampToValueAtTime(0.00001, releaseEnd);
 
     osc.connect(gainNode);
     gainNode.connect(this._masterGain);
@@ -65,7 +93,7 @@ export class AudioManager {
     };
 
     osc.start(startAt);
-    osc.stop(stopAt);
+    osc.stop(releaseEnd);
   }
 
   _playSequence(notes, intervalMs) {
@@ -100,9 +128,38 @@ export class AudioManager {
       return;
     }
 
-    const safeIndex = Number.isFinite(switchIndex) ? Math.max(0, Math.min(7, switchIndex | 0)) : 0;
-    const freq = PRESS_FREQUENCIES[safeIndex];
-    this._playTone(freq, 80, 'sine', 0.2, 5, 65);
+    const scaleName      = appState.get('musicScale')      || 'pentatonic';
+    const instrumentName = appState.get('musicInstrument') || 'bells';
+    const voiceMode      = appState.get('musicVoiceMode')  || 'together';
+
+    const scale      = SCALES[scaleName]      ?? SCALES.pentatonic;
+    const instrument = INSTRUMENTS[instrumentName] ?? INSTRUMENTS.bells;
+    const noteLengthName = appState.get('musicNoteLength') || 'medium';
+    const noteLengthMult = noteLengthName === 'short' ? 0.45 : noteLengthName === 'long' ? 3.0 : 1.0;
+
+    let freq;
+    if (voiceMode === 'own') {
+      // Each switch maps to a fixed position spread evenly across the scale
+      const safeIndex = Number.isFinite(switchIndex) ? Math.max(0, Math.min(7, switchIndex | 0)) : 0;
+      freq = scale[Math.round(safeIndex * (scale.length - 1) / 7)];
+    } else {
+      // Random pick from scale — never repeat the immediately previous note
+      let idx = Math.floor(Math.random() * scale.length);
+      if (scale.length > 1 && idx === this._lastNoteIndex) {
+        idx = (idx + 1 + Math.floor(Math.random() * (scale.length - 1))) % scale.length;
+      }
+      this._lastNoteIndex = idx;
+      freq = scale[idx];
+    }
+
+    this._playTone(
+      freq,
+      instrument.durationMs * noteLengthMult,
+      instrument.waveType,
+      instrument.volume,
+      instrument.attackMs,
+      instrument.decayMs * noteLengthMult,
+    );
   }
 
   playFanfare() {
@@ -134,6 +191,10 @@ export class AudioManager {
     chordNotes.forEach((freq) => {
       this._playTone(freq, 800, 'sine', 0.2, 20, 750, chordStart);
     });
+  }
+
+  resetMelody() {
+    this._lastNoteIndex = -1;
   }
 
   toggleMute() {

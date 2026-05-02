@@ -124,12 +124,83 @@ export class SettingsPanel {
 
   _buildSoundContent() {
     const container = document.createElement('div');
+
     this._muteToggle = createToggle({
       label: 'Mute',
       value: appState.get('muted'),
       onChange: (v) => appState.set('muted', v),
     });
     container.appendChild(this._muteToggle);
+
+    const sep = () => { const d = document.createElement('div'); d.style.marginTop = '14px'; return d; };
+
+    this._musicScaleGroup = createOptionGroup({
+      label: 'Scale / Mood',
+      options: [
+        { value: 'pentatonic', label: 'Pentatonic' },
+        { value: 'blues',      label: 'Blues' },
+        { value: 'major',      label: 'Bright (Major)' },
+        { value: 'dorian',     label: 'Heroic (Dorian)' },
+        { value: 'lydian',     label: 'Dreamy (Lydian)' },
+      ],
+      selected: appState.get('musicScale'),
+      onChange: (v) => appState.set('musicScale', v),
+    });
+    const scaleWrap = sep();
+    scaleWrap.appendChild(this._musicScaleGroup);
+    container.appendChild(scaleWrap);
+
+    this._musicInstrumentGroup = createOptionGroup({
+      label: 'Instrument',
+      options: [
+        { value: 'bells',     label: 'Bells' },
+        { value: 'piano',     label: 'Piano' },
+        { value: 'marimba',   label: 'Marimba' },
+        { value: 'xylophone', label: 'Xylophone' },
+        { value: 'synth',     label: 'Synth' },
+      ],
+      selected: appState.get('musicInstrument'),
+      onChange: (v) => appState.set('musicInstrument', v),
+    });
+    const instrWrap = sep();
+    instrWrap.appendChild(this._musicInstrumentGroup);
+    container.appendChild(instrWrap);
+
+    this._musicVoiceModeGroup = createOptionGroup({
+      label: 'How sounds work',
+      options: [
+        { value: 'together', label: 'Together (shared melody)' },
+        { value: 'own',      label: 'Own Note (per switch)' },
+      ],
+      selected: appState.get('musicVoiceMode'),
+      onChange: (v) => appState.set('musicVoiceMode', v),
+    });
+    const voiceWrap = sep();
+    voiceWrap.appendChild(this._musicVoiceModeGroup);
+    container.appendChild(voiceWrap);
+
+    this._musicNoteLengthGroup = createOptionGroup({
+      label: 'Note length',
+      options: [
+        { value: 'short',  label: 'Short' },
+        { value: 'medium', label: 'Medium' },
+        { value: 'long',   label: 'Long' },
+      ],
+      selected: appState.get('musicNoteLength'),
+      onChange: (v) => appState.set('musicNoteLength', v),
+    });
+    const noteLenWrap = sep();
+    noteLenWrap.appendChild(this._musicNoteLengthGroup);
+    container.appendChild(noteLenWrap);
+
+    // Keep UI in sync when defaults are reset
+    this._unsubscribers.push(
+      appState.subscribe('musicScale',      (v) => this._musicScaleGroup.setValue(v)),
+      appState.subscribe('musicInstrument', (v) => this._musicInstrumentGroup.setValue(v)),
+      appState.subscribe('musicVoiceMode',  (v) => this._musicVoiceModeGroup.setValue(v)),
+      appState.subscribe('musicNoteLength', (v) => this._musicNoteLengthGroup.setValue(v)),
+    );
+
     return container;
   }
 

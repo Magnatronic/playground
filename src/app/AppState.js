@@ -23,6 +23,12 @@ const DEFAULTS = {
 
   // Switch Profiles — initialized empty, populated by AppShell from SwitchManager
   switchProfiles: [],
+
+  // Music
+  musicScale: 'pentatonic',
+  musicInstrument: 'bells',
+  musicVoiceMode: 'together',
+  musicNoteLength: 'medium',
 };
 
 class AppState {
