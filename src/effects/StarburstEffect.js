@@ -61,16 +61,15 @@ function getBurstStreakTex(colour, len, w) {
 
 export class StarburstEffect extends BaseEffect {
   createEffect(container, options) {
-    const { x, y, colour, size = 20, opacity = 0.95, impactMultiplier = 1 } = options;
+    const { x, y, colour, size = 20, opacity = 0.95, impactMultiplier = 1, onBurstStart = null } = options;
     const sc       = Math.max(0.6, impactMultiplier);
     const colorNum = hexToNumber(colour);
     const group    = new Container();
     container.addChild(group);
 
     // ── Phase 1: rocket launch ──────────────────────────────────────────────
-    const launchDist = size * sc * 2.5 + Math.random() * size * sc;
-    const burstX     = x + (Math.random() - 0.5) * size * sc * 0.6;
-    const burstY     = y - launchDist;
+    const burstX     = x;
+    const burstY     = y - size * sc * 2.0;
     const launchMs   = 280 + Math.random() * 180;
     const maxW       = Math.max(2, size * sc * 0.18);
 
@@ -135,6 +134,9 @@ export class StarburstEffect extends BaseEffect {
         rocket.destroy();
         if (trail.parent)  trail.parent.removeChild(trail);
         trail.destroy();
+        if (typeof onBurstStart === 'function') {
+          onBurstStart({ burstX, burstY });
+        }
         startBurst(burstX, burstY);
       }
     };

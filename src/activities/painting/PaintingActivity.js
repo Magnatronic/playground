@@ -94,7 +94,7 @@ export class PaintingActivity extends BaseActivity {
     } else if (this.effectType === 'smoke') {
       this.paintLayer.stampSmoke(stampOptions);
     } else if (this.effectType === 'firework') {
-      this.paintLayer.stampFirework(stampOptions);
+      // Firework permanent mark is stamped on burst-start for timing sync.
     } else if (this.effectType === 'brush') {
       this.paintLayer.stampSoft(stampOptions);
     } else {
@@ -106,7 +106,7 @@ export class PaintingActivity extends BaseActivity {
     // Play animated effect on top for visual feedback
     const effect = createEffect(this.effectType);
 
-    effect.spawn(this.effectsContainer, {
+    const effectOptions = {
       x,
       y,
       colour: switchProfile.colour,
@@ -114,7 +114,15 @@ export class PaintingActivity extends BaseActivity {
       opacity: Math.min(1, this._effectOpacity + 0.2),
       scatter: 0, // scatter already applied above
       impactMultiplier: switchProfile.impactMultiplier,
-    });
+    };
+
+    if (this.effectType === 'firework') {
+      effectOptions.onBurstStart = () => {
+        this.paintLayer.stampFirework(stampOptions);
+      };
+    }
+
+    effect.spawn(this.effectsContainer, effectOptions);
   }
 
   getInputConfig() {
