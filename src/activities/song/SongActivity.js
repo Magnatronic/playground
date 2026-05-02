@@ -20,7 +20,7 @@ const HINT_FRAMES = 22;
 
 const SONG_MAP_PER_ROW = 8;
 const SONG_MAP_GAP = 8;
-const DUST_MAX_PARTICLES = 1400;
+const DUST_MAX_PARTICLES = 2200;
 
 const FREE_PLAY_FALLBACK = [
   { name: 'C', freq: 261.63 },
@@ -515,7 +515,7 @@ export class SongActivity extends BaseActivity {
         const tx = this._tileStartX() + idx * (tileSize + TILE_GAP) + tileSize / 2;
         const ty = this._tileY() + tileSize / 2;
         const load = clamp01(this._dustParticles.length / DUST_MAX_PARTICLES);
-        const burstCount = Math.round(90 * (1 - load));
+        const burstCount = Math.max(20, Math.round(90 * (1 - load * 0.5)));
         if (burstCount > 0) {
           for (let i = 0; i < burstCount; i++) {
             this._spawnDustParticle({
@@ -602,14 +602,23 @@ export class SongActivity extends BaseActivity {
       const t = Math.min(1, (dt / 60) * 0.045);
       this._bgColorCurrent = lerpColor(this._bgColorCurrent, this._bgColorTarget, t);
 
-      // Only spawn when below cap — no overflow culling needed, natural fade cleans up.
+      // Always emit — ambient rate eases off as pool fills but never stops.
       const load = clamp01(this._dustParticles.length / DUST_MAX_PARTICLES);
-      if (load < 1) {
-        const ambientRate = 8.0 + (18.0 - 8.0) * (1 - load);
-        this._dustSpawnCarry += (dt / 60) * ambientRate;
-        while (this._dustSpawnCarry >= 1 && this._dustParticles.length < DUST_MAX_PARTICLES) {
-          this._spawnAmbientDust(1);
-          this._dustSpawnCarry -= 1;
+      const ambientRate = 4.0 + (18.0 - 4.0) * (1 - load);
+      this._dustSpawnCarry += (dt / 60) * ambientRate;
+      while (this._dustSpawnCarry >= 1) {
+        this._spawnAmbientDust(1);
+        this._dustSpawnCarry -= 1;
+      }
+
+      // If over soft cap, nudge oldest particles to fade faster so new ones
+      // always have room — no hard splice, no visible reset.
+      const softCap = Math.round(DUST_MAX_PARTICLES * 0.92);
+      if (this._dustParticles.length > softCap) {
+        const excess = this._dustParticles.length - softCap;
+        const nudge = Math.min(excess, 12);
+        for (let i = 0; i < nudge; i++) {
+          this._dustParticles[i].fadeRate *= 1.06;
         }
       }
 

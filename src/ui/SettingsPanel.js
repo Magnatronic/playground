@@ -106,6 +106,7 @@ export class SettingsPanel {
     this._sections.freePlayNotes = this._createSection('Free Play Notes', this._buildFreePlayNotesContent(), true);
     this._sections.switches = this._createSection('Switches', this._buildSwitchesContent(), false);
     this._sections.actions = this._createSection('Actions', this._buildActionsContent(), true);
+    this._sections.actionsNoCanvas = this._createSection('Actions', this._buildActionsNoCanvasContent(), true);
 
     Object.values(this._sections).forEach((section) => {
       this._body.appendChild(section.el);
@@ -699,7 +700,7 @@ export class SettingsPanel {
     return container;
   }
 
-  _buildActionsContent() {
+  _buildActionsNoCanvasContent() {
     const container = document.createElement('div');
     container.className = 'pg-actions';
 
@@ -712,6 +713,32 @@ export class SettingsPanel {
       this._refreshAllControls();
     });
 
+    container.appendChild(resetBtn);
+    return container;
+  }
+
+  _buildActionsContent() {
+    const container = document.createElement('div');
+    container.className = 'pg-actions';
+
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'pg-action-btn pg-action-btn--danger';
+    clearBtn.textContent = 'Clear Canvas';
+    clearBtn.setAttribute('tabindex', '-1');
+    clearBtn.addEventListener('click', () => {
+      appState.set('_action', 'clear');
+    });
+
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'pg-action-btn';
+    resetBtn.textContent = 'Reset Defaults';
+    resetBtn.setAttribute('tabindex', '-1');
+    resetBtn.addEventListener('click', () => {
+      appState.set('_action', 'resetDefaults');
+      this._refreshAllControls();
+    });
+
+    container.appendChild(clearBtn);
     container.appendChild(resetBtn);
     return container;
   }

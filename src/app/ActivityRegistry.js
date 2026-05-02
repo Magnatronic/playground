@@ -25,7 +25,7 @@ export const activityRegistry = [
     description: 'Follow along and play songs together',
     icon: 'music',
     ActivityClass: SongActivity,
-    settingsSections: ['soundSong', 'songSelect', 'songMode', 'freePlayNotes', 'actions'],
+    settingsSections: ['soundSong', 'songSelect', 'songMode', 'freePlayNotes', 'actionsNoCanvas'],
   },
 ];
 
