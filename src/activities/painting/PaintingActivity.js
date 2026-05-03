@@ -95,6 +95,8 @@ export class PaintingActivity extends BaseActivity {
       this.paintLayer.stampSmoke(stampOptions);
     } else if (this.effectType === 'firework') {
       // Firework permanent mark is stamped on burst-start for timing sync.
+    } else if (this.effectType === 'mist') {
+      // Mist particles stamp themselves individually when they settle.
     } else if (this.effectType === 'brush') {
       this.paintLayer.stampSoft(stampOptions);
     } else {
@@ -112,8 +114,10 @@ export class PaintingActivity extends BaseActivity {
       colour: switchProfile.colour,
       size: this._effectSize,
       opacity: Math.min(1, this._effectOpacity + 0.2),
-      scatter: 0, // scatter already applied above
+      scatter: 0,          // scatter already applied to x,y above
+      cloudSpread: scatter, // mist uses this for per-particle spread
       impactMultiplier: switchProfile.impactMultiplier,
+      paintLayer: this.paintLayer,
     };
 
     if (this.effectType === 'firework') {

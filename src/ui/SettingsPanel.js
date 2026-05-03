@@ -297,6 +297,7 @@ export class SettingsPanel {
         { value: 'smoke', label: 'Smoke' },
         { value: 'firework', label: 'Firework' },
         { value: 'splat', label: 'Splat (Paint Toss)' },
+        { value: 'mist', label: 'Mist' },
       ],
       selected: appState.get('effectType'),
       onChange: (v) => appState.set('effectType', v),

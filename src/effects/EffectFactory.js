@@ -3,6 +3,7 @@ import { SoftBrush } from './SoftBrush.js';
 import { SmokeEffect } from './SmokeEffect.js';
 import { StarburstEffect } from './StarburstEffect.js';
 import { SplatEffect } from './SplatEffect.js';
+import { MistEffect } from './MistEffect.js';
 
 const EFFECT_TYPES = {
   solid: SolidCircle,
@@ -10,6 +11,7 @@ const EFFECT_TYPES = {
   smoke: SmokeEffect,
   firework: StarburstEffect,
   splat: SplatEffect,
+  mist: MistEffect,
 };
 
 export function createEffect(type) {
