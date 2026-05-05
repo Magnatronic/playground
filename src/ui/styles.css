@@ -512,6 +512,75 @@
 }
 
 /* ===== Free Play Note Mapping ===== */
+.pg-free-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pg-space-xs);
+  padding-bottom: var(--pg-space-sm);
+}
+
+.pg-free-preset-btn {
+  padding: 6px 10px;
+  border-radius: var(--pg-radius-sm);
+  border: 2px solid var(--pg-border);
+  background: var(--pg-bg-card);
+  color: var(--pg-text-primary);
+  font-family: var(--pg-font);
+  font-size: var(--pg-font-size-sm);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.pg-free-preset-btn:hover {
+  background: var(--pg-bg-hover, #2a2f4a);
+  border-color: var(--pg-accent);
+}
+
+.pg-free-octave-row {
+  display: flex;
+  align-items: center;
+  gap: var(--pg-space-sm);
+  padding-bottom: var(--pg-space-sm);
+}
+
+.pg-free-octave-row__label {
+  font-family: var(--pg-font);
+  font-size: var(--pg-font-size-sm);
+  color: var(--pg-text-secondary);
+  font-weight: 600;
+  min-width: 52px;
+}
+
+.pg-free-oct-btn {
+  padding: 6px 10px;
+  border-radius: var(--pg-radius-sm);
+  border: 2px solid var(--pg-border);
+  background: var(--pg-bg-card);
+  color: var(--pg-text-primary);
+  font-family: var(--pg-font);
+  font-size: var(--pg-font-size-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.pg-free-oct-btn:hover {
+  background: var(--pg-bg-hover, #2a2f4a);
+  border-color: var(--pg-accent);
+}
+
+.pg-free-oct-display {
+  font-family: var(--pg-font);
+  font-size: var(--pg-font-size-sm);
+  color: var(--pg-text-primary);
+  font-weight: 700;
+  min-width: 28px;
+  text-align: center;
+}
+
+.pg-free-chord-row {
+  padding-bottom: var(--pg-space-sm);
+}
+
 .pg-free-note-row {
   display: grid;
   grid-template-columns: 22px 56px 1fr;

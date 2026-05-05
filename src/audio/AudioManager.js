@@ -200,14 +200,21 @@ export class AudioManager {
   // Play a specific frequency directly — used by Song Mode to play exact song pitches
   // regardless of the current scale setting.
   playSongNote(freq) {
-    if (this._muted || !freq) return;
+    if (this._muted) return;
+    // Accept a single freq or an array (chord)
+    const freqs = Array.isArray(freq) ? freq : [freq];
+    if (!freqs.length || !freqs[0]) return;
     const context = this._ensureContext();
     if (!context) return;
     const instrumentName = appState.get('musicInstrument') || 'bells';
     const noteLengthName = appState.get('musicNoteLength') || 'medium';
     const instrument     = INSTRUMENTS[instrumentName] ?? INSTRUMENTS.bells;
     const mult = noteLengthName === 'short' ? 0.45 : noteLengthName === 'long' ? 3.0 : 1.0;
-    this._playTone(freq, instrument.durationMs * mult, instrument.waveType, instrument.volume, instrument.attackMs, instrument.decayMs * mult);
+    // Reduce volume slightly per extra note so chords don't clip
+    const vol = instrument.volume / Math.sqrt(freqs.length);
+    for (const f of freqs) {
+      if (f) this._playTone(f, instrument.durationMs * mult, instrument.waveType, vol, instrument.attackMs, instrument.decayMs * mult);
+    }
   }
 
   toggleMute() {

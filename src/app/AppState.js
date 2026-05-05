@@ -35,6 +35,8 @@ const DEFAULTS = {
     { name: 'G', freq: 392.00 },
     { name: 'A', freq: 440.00 },
   ],
+  freePlayChords: false,
+  freePlayOctave: 0, // -2 to +2 octave shift applied at play time
 
   // Music
   musicScale: 'pentatonic',

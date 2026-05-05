@@ -20,44 +20,11 @@ const HINT_FRAMES = 22;
 
 const SONG_MAP_PER_ROW = 8;
 const SONG_MAP_GAP = 8;
-const DUST_MAX_PARTICLES = 2200;
-
-const FREE_PLAY_FALLBACK = [
-  { name: 'C', freq: 261.63 },
-  { name: 'D', freq: 293.66 },
-  { name: 'E', freq: 329.63 },
-  { name: 'F', freq: 349.23 },
-  { name: 'G', freq: 392.0 },
-  { name: 'A', freq: 440.0 },
-];
 
 function hexToNumber(hex) {
   return parseInt((hex || '#888888').replace('#', '0x'));
 }
 
-function lerpColor(fromCol, toCol, t) {
-  const fr = (fromCol >> 16) & 0xff;
-  const fg = (fromCol >> 8) & 0xff;
-  const fb = fromCol & 0xff;
-
-  const tr = (toCol >> 16) & 0xff;
-  const tg = (toCol >> 8) & 0xff;
-  const tb = toCol & 0xff;
-
-  const nr = Math.round(fr + (tr - fr) * t);
-  const ng = Math.round(fg + (tg - fg) * t);
-  const nb = Math.round(fb + (tb - fb) * t);
-
-  return (nr << 16) | (ng << 8) | nb;
-}
-
-function clamp01(v) {
-  return Math.max(0, Math.min(1, v));
-}
-
-function randRange(min, max) {
-  return min + Math.random() * (max - min);
-}
 
 export class SongActivity extends BaseActivity {
   constructor() {
@@ -71,14 +38,6 @@ export class SongActivity extends BaseActivity {
     this._debounceMs = 80;
     this._lastPress = new Map();
     this._profiles = [];
-    this._freePlayNotes = FREE_PLAY_FALLBACK;
-
-    this._bgGfx = null;
-    this._bgColorCurrent = 0x1a1a2e;
-    this._bgColorTarget = 0x1a1a2e;
-    this._bgPhase = Math.random() * Math.PI * 2;
-    this._dustParticles = [];
-    this._dustSpawnCarry = 0;
 
     this._songMapCells = [];
   }
@@ -93,29 +52,16 @@ export class SongActivity extends BaseActivity {
 
     this._profiles = appState.get('switchProfiles') || [];
     this._song = getSongById(appState.get('songId') || 'twinkle');
-    this._songMode = appState.get('songMode') || 'rhythm';
+    // Defensive: if a stored songMode is 'free' (from old data), fall back to 'rhythm'
+    const storedMode = appState.get('songMode') || 'rhythm';
+    this._songMode = storedMode === 'free' ? 'rhythm' : storedMode;
     this._stepIndex = 0;
-    this._freePlayNotes = this._sanitizeFreePlayNotes(appState.get('freePlayNotes'));
 
     this._rebuildVisuals();
   }
 
-  _sanitizeFreePlayNotes(notes) {
-    if (!Array.isArray(notes) || notes.length !== SWITCH_LAYOUT.length) {
-      return FREE_PLAY_FALLBACK.slice();
-    }
-
-    return notes.map((n, i) => {
-      const fallback = FREE_PLAY_FALLBACK[i];
-      if (!n || typeof n.name !== 'string' || typeof n.freq !== 'number') {
-        return fallback;
-      }
-      return { name: n.name, freq: n.freq };
-    });
-  }
-
   _tileSize() {
-    return this._songMode === 'free' ? 146 : 108;
+    return 108;
   }
 
   _tileStartX() {
@@ -126,15 +72,10 @@ export class SongActivity extends BaseActivity {
 
   _tileY() {
     const size = this._tileSize();
-    if (this._songMode === 'free') {
-      return (this.app.screen.height * 0.6) - (size / 2);
-    }
-
     if (this._songMode === 'rhythm') {
       // Rhythm tap does not show the bottom tile row, so use this only as map layout anchor.
       return this.app.screen.height * 0.84;
     }
-
     const fromBottom = this.app.screen.height - size - 84;
     return Math.max(this.app.screen.height * 0.48, fromBottom);
   }
@@ -173,22 +114,11 @@ export class SongActivity extends BaseActivity {
     });
     this._songMapCells = [];
 
-    this._bgGfx?.destroy();
-    this._bgGfx = null;
-    this._dustParticles = [];
-    this._dustSpawnCarry = 0;
-
     this._container.removeChildren();
 
-    this._buildBackgroundLayer();
     this._buildSongMap();
     this._buildTiles();
     this._refreshAll();
-  }
-
-  _buildBackgroundLayer() {
-    this._bgGfx = new Graphics();
-    this._container.addChild(this._bgGfx);
   }
 
   _buildSongMap() {
@@ -232,11 +162,8 @@ export class SongActivity extends BaseActivity {
       const profile = this._profiles.find((p) => p.index === layout.index);
       const colour = profile?.colour || '#888888';
 
-      const inSong = song.noteMap[layout.index] != null;
-      const hasNote = this._songMode === 'free' ? true : inSong;
-      const noteName = this._songMode === 'free'
-        ? (this._freePlayNotes[layout.index]?.name || '')
-        : (song.noteNames[layout.index] || '');
+      const hasNote = song.noteMap[layout.index] != null;
+      const noteName = song.noteNames[layout.index] || '';
 
       const gfx = new Graphics();
       gfx.x = startX + i * (tileSize + TILE_GAP) - 8;
@@ -313,101 +240,8 @@ export class SongActivity extends BaseActivity {
   }
 
   _refreshAll() {
-    this._refreshBackgroundLayer();
     this._refreshSongMap();
     this._refreshTiles();
-  }
-
-  _refreshBackgroundLayer() {
-    if (!this._bgGfx) {
-      return;
-    }
-
-    const show = this._songMode === 'free';
-    this._bgGfx.visible = show;
-    if (!show) {
-      return;
-    }
-
-    this._bgGfx.clear();
-    const w = this.app.screen.width;
-    const h = this.app.screen.height;
-    const particleDensity = clamp01(this._dustParticles.length / 140);
-
-    // Base wash stays stable so the field feels calm while particles carry movement.
-    this._bgGfx.rect(0, 0, w, h);
-    this._bgGfx.fill({ color: lerpColor(0x161a34, this._bgColorCurrent, 0.44), alpha: 0.26 });
-
-    // Very subtle full-screen tint lift as dust density grows.
-    this._bgGfx.rect(0, 0, w, h);
-    this._bgGfx.fill({ color: lerpColor(0x1a1f3d, this._bgColorTarget, 0.28), alpha: 0.04 + particleDensity * 0.03 });
-
-    for (let i = 0; i < this._dustParticles.length; i++) {
-      this._drawDustParticle(this._dustParticles[i]);
-    }
-  }
-
-  _drawDustParticle(particle) {
-    const lifeAlpha = clamp01(particle.life);
-    if (lifeAlpha <= 0.01) return;
-
-    const a = particle.alpha * lifeAlpha;
-    if (a <= 0.004) return;
-
-    const r = particle.size;
-    // Two overlapping soft ellipses, slightly offset, give a tiny organic smear
-    // without any recognisable shape.
-    this._bgGfx.ellipse(particle.x, particle.y, r, r * particle.squeeze);
-    this._bgGfx.fill({ color: particle.color, alpha: a });
-    this._bgGfx.ellipse(
-      particle.x + particle.ox,
-      particle.y + particle.oy,
-      r * 0.65,
-      r * 0.65 * particle.squeeze,
-    );
-    this._bgGfx.fill({ color: particle.color, alpha: a * 0.55 });
-  }
-
-  _spawnDustParticle({ x, y, color, boost = 0 }) {
-    // Full-circle drift so particles spread in every direction.
-    const angle = Math.random() * Math.PI * 2;
-    const speed = randRange(0.12, 0.45) * (1 + boost * 0.6);
-    // Tiny random offset for the secondary smear ellipse.
-    const smearAngle = Math.random() * Math.PI * 2;
-    const smearDist = randRange(1, 3);
-
-    this._dustParticles.push({
-      x,
-      y,
-      color,
-      // radius: tiny so they read as individual mist particles, not blobs
-      size: randRange(1.5, 4.0 + boost * 1.5),
-      // squeeze gives an irregular ellipse instead of a perfect circle
-      squeeze: randRange(0.55, 1.0),
-      // secondary smear offset
-      ox: Math.cos(smearAngle) * smearDist,
-      oy: Math.sin(smearAngle) * smearDist,
-      alpha: randRange(0.18, 0.38 + boost * 0.08),
-      life: randRange(1.0, 1.8),
-      driftX: Math.cos(angle) * speed,
-      driftY: Math.sin(angle) * speed,
-      wobblePhase: randRange(0, Math.PI * 2),
-      wobbleSpeed: randRange(0.15, 0.55),
-      wobbleAmp: randRange(0.06, 0.22),
-      fadeRate: randRange(0.00030, 0.00065),
-    });
-  }
-
-  _spawnAmbientDust(count = 1) {
-    const w = this.app.screen.width;
-    const h = this.app.screen.height;
-    for (let i = 0; i < count; i++) {
-      const x = randRange(0, w);
-      const y = randRange(h * 0.15, h * 0.95);
-      const mix = 0.25 + 0.5 * Math.random();
-      const color = lerpColor(this._bgColorCurrent, this._bgColorTarget, mix);
-      this._spawnDustParticle({ x, y, color, boost: 0 });
-    }
   }
 
   _refreshSongMap() {
@@ -459,9 +293,6 @@ export class SongActivity extends BaseActivity {
   }
 
   _baseTileAlpha(tile) {
-    if (this._songMode === 'free') {
-      return 1.0;
-    }
     return tile.hasNote ? 1.0 : 0.18;
   }
 
@@ -497,38 +328,6 @@ export class SongActivity extends BaseActivity {
 
     const idx = switchProfile.index;
     if (idx < 0 || idx >= SWITCH_LAYOUT.length) {
-      return;
-    }
-
-    if (this._songMode === 'free') {
-      const note = this._freePlayNotes[idx];
-      if (note?.freq) {
-        audioManager.playSongNote(note.freq);
-      } else {
-        audioManager.playPressSound(idx);
-      }
-
-      const tile = this._tiles[idx];
-      if (tile) {
-        this._bgColorTarget = hexToNumber(tile.colour);
-        const tileSize = this._tileSize();
-        const tx = this._tileStartX() + idx * (tileSize + TILE_GAP) + tileSize / 2;
-        const ty = this._tileY() + tileSize / 2;
-        const load = clamp01(this._dustParticles.length / DUST_MAX_PARTICLES);
-        const burstCount = Math.max(20, Math.round(90 * (1 - load * 0.5)));
-        if (burstCount > 0) {
-          for (let i = 0; i < burstCount; i++) {
-            this._spawnDustParticle({
-              x: tx + randRange(-tileSize * 0.48, tileSize * 0.48),
-              y: ty + randRange(-tileSize * 0.34, tileSize * 0.34),
-              color: hexToNumber(tile.colour),
-              boost: 1,
-            });
-          }
-        }
-      }
-
-      this._triggerPulse(idx);
       return;
     }
 
@@ -595,49 +394,6 @@ export class SongActivity extends BaseActivity {
   }
 
   update(delta) {
-    if (this._songMode === 'free') {
-      const dt = Math.max(0.3, delta);
-      this._bgPhase += (dt / 60) * 0.45;
-
-      const t = Math.min(1, (dt / 60) * 0.045);
-      this._bgColorCurrent = lerpColor(this._bgColorCurrent, this._bgColorTarget, t);
-
-      // Always emit — ambient rate eases off as pool fills but never stops.
-      const load = clamp01(this._dustParticles.length / DUST_MAX_PARTICLES);
-      const ambientRate = 4.0 + (18.0 - 4.0) * (1 - load);
-      this._dustSpawnCarry += (dt / 60) * ambientRate;
-      while (this._dustSpawnCarry >= 1) {
-        this._spawnAmbientDust(1);
-        this._dustSpawnCarry -= 1;
-      }
-
-      // If over soft cap, nudge oldest particles to fade faster so new ones
-      // always have room — no hard splice, no visible reset.
-      const softCap = Math.round(DUST_MAX_PARTICLES * 0.92);
-      if (this._dustParticles.length > softCap) {
-        const excess = this._dustParticles.length - softCap;
-        const nudge = Math.min(excess, 12);
-        for (let i = 0; i < nudge; i++) {
-          this._dustParticles[i].fadeRate *= 1.06;
-        }
-      }
-
-      for (let i = this._dustParticles.length - 1; i >= 0; i--) {
-        const dust = this._dustParticles[i];
-        dust.wobblePhase += dust.wobbleSpeed * (dt / 60);
-        dust.x += dust.driftX * dt + Math.sin(dust.wobblePhase) * dust.wobbleAmp * dt;
-        dust.y += dust.driftY * dt;
-        dust.life -= dust.fadeRate * dt;
-
-        const sh = this.app.screen.height;
-        if (dust.life <= 0 || dust.y < -80 || dust.y > sh + 80 || dust.x < -80 || dust.x > this.app.screen.width + 80) {
-          this._dustParticles.splice(i, 1);
-        }
-      }
-
-      this._refreshBackgroundLayer();
-    }
-
     if (!this._tiles.length) {
       return;
     }
@@ -679,16 +435,10 @@ export class SongActivity extends BaseActivity {
   }
 
   setSongMode(mode) {
-    this._songMode = mode;
+    // Ignore any 'free' mode — free play is its own activity now
+    this._songMode = mode === 'free' ? 'rhythm' : mode;
     this._stepIndex = 0;
     this._rebuildVisuals();
-  }
-
-  setFreePlayNotes(notes) {
-    this._freePlayNotes = this._sanitizeFreePlayNotes(notes);
-    if (this._songMode === 'free') {
-      this._rebuildVisuals();
-    }
   }
 
   destroy() {
@@ -703,7 +453,6 @@ export class SongActivity extends BaseActivity {
 
     this._tiles = [];
     this._songMapCells = [];
-    this._bgGfx = null;
     super.destroy();
   }
 }

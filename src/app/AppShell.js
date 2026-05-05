@@ -285,7 +285,13 @@ export class AppShell {
     if (activityId === 'song') {
       subs.push(appState.subscribe('songId',   (v) => activity.setSong?.(v)));
       subs.push(appState.subscribe('songMode', (v) => activity.setSongMode?.(v)));
-      subs.push(appState.subscribe('freePlayNotes', (v) => activity.setFreePlayNotes?.(v)));
+    }
+
+    // Free Play-specific
+    if (activityId === 'freeplay') {
+      subs.push(appState.subscribe('freePlayNotes',  (v) => activity.setFreePlayNotes?.(v)));
+      subs.push(appState.subscribe('freePlayChords', (v) => activity.setChords?.(v)));
+      subs.push(appState.subscribe('freePlayOctave', (v) => activity.setOctave?.(v)));
     }
 
     // Screen Fill-specific

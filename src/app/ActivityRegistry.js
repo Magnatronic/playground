@@ -1,6 +1,7 @@
 import { PaintingActivity } from '../activities/painting/PaintingActivity.js';
 import { ScreenFillActivity } from '../activities/screen-fill/ScreenFillActivity.js';
 import { SongActivity } from '../activities/song/SongActivity.js';
+import { FreePlayActivity } from '../activities/song/FreePlayActivity.js';
 
 export const activityRegistry = [
   {
@@ -25,7 +26,15 @@ export const activityRegistry = [
     description: 'Follow along and play songs together',
     icon: 'music',
     ActivityClass: SongActivity,
-    settingsSections: ['soundSong', 'songSelect', 'songMode', 'freePlayNotes', 'actionsNoCanvas'],
+    settingsSections: ['soundSong', 'songSelect', 'songMode', 'actionsNoCanvas'],
+  },
+  {
+    id: 'freeplay',
+    name: 'Free Play',
+    description: 'Play any notes freely with a mist of colour',
+    icon: 'music',
+    ActivityClass: FreePlayActivity,
+    settingsSections: ['soundSong', 'freePlayNotes', 'actionsNoCanvas'],
   },
 ];
 

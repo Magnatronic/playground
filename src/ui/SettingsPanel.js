@@ -9,18 +9,26 @@ import { SONGS } from '../activities/song/songs.js';
 const SWITCH_KEYS = new Set(['Space', 'Enter', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'F7', 'F8']);
 const FREE_PLAY_SWITCH_LABELS = ['Space', 'Enter', '\u2191', '\u2193', '\u2190', '\u2192'];
 const FREE_PLAY_NOTE_OPTIONS = [
-  { name: 'C', freq: 261.63 },
+  { name: 'C',  freq: 261.63 },
   { name: 'C#', freq: 277.18 },
-  { name: 'D', freq: 293.66 },
+  { name: 'D',  freq: 293.66 },
   { name: 'D#', freq: 311.13 },
-  { name: 'E', freq: 329.63 },
-  { name: 'F', freq: 349.23 },
+  { name: 'E',  freq: 329.63 },
+  { name: 'F',  freq: 349.23 },
   { name: 'F#', freq: 369.99 },
-  { name: 'G', freq: 392.0 },
-  { name: 'G#', freq: 415.3 },
-  { name: 'A', freq: 440.0 },
+  { name: 'G',  freq: 392.00 },
+  { name: 'G#', freq: 415.30 },
+  { name: 'A',  freq: 440.00 },
   { name: 'A#', freq: 466.16 },
-  { name: 'B', freq: 493.88 },
+  { name: 'B',  freq: 493.88 },
+];
+
+const FREE_PLAY_PRESETS = [
+  { label: 'C Major',    notes: ['C','D','E','F','G','A'] },
+  { label: 'Pentatonic', notes: ['C','D','E','G','A','C'] },
+  { label: 'Minor',      notes: ['A','C','D','E','G','A'] },
+  { label: 'Blues',      notes: ['C','D#','F','F#','G','A#'] },
+  { label: 'Dorian',     notes: ['D','E','F','G','A','B'] },
 ];
 
 function findFreePlayNoteByName(name) {
@@ -525,7 +533,6 @@ export class SettingsPanel {
       options: [
         { value: 'rhythm',  label: 'Rhythm Tap \u2014 any switch, right notes' },
         { value: 'guided',  label: 'Guided \u2014 press the correct colour' },
-        { value: 'free',    label: 'Free Play \u2014 explore the notes' },
       ],
       selected: appState.get('songMode'),
       onChange: (v) => appState.set('songMode', v),
@@ -544,6 +551,79 @@ export class SettingsPanel {
     this._freePlayNoteSelects = [];
     this._freePlayNoteSwatches = [];
 
+    // ── Presets row ────────────────────────────────────────────────────────
+    const presetsRow = document.createElement('div');
+    presetsRow.className = 'pg-free-presets';
+    FREE_PLAY_PRESETS.forEach((preset) => {
+      const btn = document.createElement('button');
+      btn.className = 'pg-free-preset-btn';
+      btn.textContent = preset.label;
+      btn.setAttribute('tabindex', '-1');
+      btn.addEventListener('click', () => {
+        const next = preset.notes.map((name) => findFreePlayNoteByName(name));
+        appState.set('freePlayNotes', next);
+      });
+      presetsRow.appendChild(btn);
+    });
+    container.appendChild(presetsRow);
+
+    // ── Octave shift row ───────────────────────────────────────────────────
+    const octaveRow = document.createElement('div');
+    octaveRow.className = 'pg-free-octave-row';
+    const octLabel = document.createElement('span');
+    octLabel.className = 'pg-free-octave-row__label';
+    octLabel.textContent = 'Octave';
+    const octDown = document.createElement('button');
+    octDown.className = 'pg-free-oct-btn';
+    octDown.textContent = '\u25bc Oct';
+    octDown.setAttribute('tabindex', '-1');
+    const octDisplay = document.createElement('span');
+    octDisplay.className = 'pg-free-oct-display';
+    const octUp = document.createElement('button');
+    octUp.className = 'pg-free-oct-btn';
+    octUp.textContent = '\u25b2 Oct';
+    octUp.setAttribute('tabindex', '-1');
+
+    const syncOctDisplay = () => {
+      const v = appState.get('freePlayOctave') || 0;
+      octDisplay.textContent = v === 0 ? '0' : (v > 0 ? `+${v}` : `${v}`);
+    };
+    syncOctDisplay();
+
+    octDown.addEventListener('click', () => {
+      const v = appState.get('freePlayOctave') || 0;
+      if (v > -2) appState.set('freePlayOctave', v - 1);
+    });
+    octUp.addEventListener('click', () => {
+      const v = appState.get('freePlayOctave') || 0;
+      if (v < 2) appState.set('freePlayOctave', v + 1);
+    });
+
+    this._unsubscribers.push(
+      appState.subscribe('freePlayOctave', () => syncOctDisplay()),
+    );
+
+    octaveRow.appendChild(octLabel);
+    octaveRow.appendChild(octDown);
+    octaveRow.appendChild(octDisplay);
+    octaveRow.appendChild(octUp);
+    container.appendChild(octaveRow);
+
+    // ── Chord toggle ───────────────────────────────────────────────────────
+    const chordRow = document.createElement('div');
+    chordRow.className = 'pg-free-chord-row';
+    const chordToggle = createToggle({
+      label: 'Power chords (root + 5th)',
+      value: appState.get('freePlayChords') || false,
+      onChange: (v) => appState.set('freePlayChords', v),
+    });
+    this._unsubscribers.push(
+      appState.subscribe('freePlayChords', (v) => chordToggle.setValue(v)),
+    );
+    chordRow.appendChild(chordToggle);
+    container.appendChild(chordRow);
+
+    // ── Per-switch note dropdowns ──────────────────────────────────────────
     const notes = appState.get('freePlayNotes') || [];
     const profiles = appState.get('switchProfiles') || [];
 
